@@ -36,7 +36,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ Scouting Pro - Liga Distrital & Nacional")
+st.title("🛡️ Improve Sports - Base de Dados de Scouting")
 
 @st.cache_data
 def load_data():
@@ -89,6 +89,7 @@ def load_data():
                 pass
             return None
         df['Idade'] = df.apply(force_calc_age, axis=1)
+        df['Idade'] = pd.to_numeric(df['Idade'], errors='coerce').astype('Int64')
 
     # Garantir apenas 1 entrada por jogador (a mais relevante / atual com mais jogos)
     if 'Jogador' in df.columns and 'J' in df.columns:
