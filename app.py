@@ -1,6 +1,48 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import io
+
+# Helper para exportar Excel
+def to_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='ScoutingData')
+    return output.getvalue()
+
+# Helper para Paginação e Exportação
+def display_paginated_df(df, key, filename="scouting_export.xlsx"):
+    if key not in st.session_state:
+        st.session_state[key] = 50
+    
+    subset = df.head(st.session_state[key])
+    
+    # Formatação condicional se colunas existirem
+    format_dict = {}
+    if '% Tempo Equipa' in subset.columns:
+        format_dict['% Tempo Equipa'] = '{:.1f}%'
+    if 'Mins/Golo' in subset.columns:
+        format_dict['Mins/Golo'] = '{:.2f}'
+    
+    if format_dict:
+        st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True)
+    else:
+        st.dataframe(subset, use_container_width=True)
+    
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if len(df) > st.session_state[key]:
+            if st.button(f"📥 Carregar mais 50 ({len(df) - st.session_state[key]} restantes)", key=f"btn_{key}"):
+                st.session_state[key] += 50
+                st.rerun()
+    with c2:
+        st.download_button(
+            label="📊 Extrair como XLSX",
+            data=to_excel(df),
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"dl_{key}"
+        )
 
 # Configuração da Página para Look Premium
 st.set_page_config(page_title="Scouting Pro Dashboard", layout="wide", page_icon="⚽")
@@ -36,7 +78,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ Improve Sports - Base de Dados de Scouting")
+st.title("🛡️ Improve Sports - Scouting Pro")
 
 @st.cache_data
 def load_data():
@@ -50,6 +92,10 @@ def load_data():
     if col_jogador and col_jogador != 'Jogador':
         df = df.rename(columns={col_jogador: 'Jogador'})
 
+    # Dropar colunas irrelevantes
+    if 'Unnamed: 13' in df.columns:
+        df = df.drop(columns=['Unnamed: 13'])
+
     # Conversões numéricas robustas
     for col in ['T', 'SU', 'M', 'A', 'AA', 'V', 'GM', 'J']:
         if col in df.columns:
@@ -58,7 +104,7 @@ def load_data():
     # Calcular Mins/Golo
     if 'M' in df.columns and 'GM' in df.columns:
         df['Mins/Golo'] = df['M'] / df['GM']
-        df['Mins/Golo'] = df['Mins/Golo'].replace([float('inf'), float('-inf')], 0).fillna(0).round(1)
+        df['Mins/Golo'] = df['Mins/Golo'].replace([float('inf'), float('-inf')], 0).fillna(0).round(2)
         
     # Calcular % Tempo Equipa
     if 'M' in df.columns and 'J' in df.columns and 'Equipa' in df.columns:
@@ -73,18 +119,28 @@ def load_data():
     if 'Idade' in df.columns or 'Data Nascimento' in df.columns:
         def force_calc_age(row):
             if pd.notna(row.get('Idade')):
-                return float(row['Idade'])
+                try: return float(row['Idade'])
+                except: pass
             data = row.get('Data Nascimento')
             if pd.isna(data): return None
             try:
-                if '-' in str(data):
-                    partes = str(data).split('-')
+                data_str = str(data).split(' ')[0] # Remover tempo se existir
+                if '-' in data_str:
+                    partes = data_str.split('-')
                     if len(partes[0]) == 4:
-                        nasc = datetime.strptime(str(data), '%Y-%m-%d')
+                        nasc = datetime.strptime(data_str, '%Y-%m-%d')
                     else:
-                        nasc = datetime.strptime(str(data), '%d-%m-%Y')
-                    hoje = datetime.today()
-                    return hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
+                        nasc = datetime.strptime(data_str, '%d-%m-%Y')
+                elif '/' in data_str:
+                    partes = data_str.split('/')
+                    if len(partes[2]) == 4:
+                        nasc = datetime.strptime(data_str, '%d/%m/%Y')
+                    else:
+                        nasc = datetime.strptime(data_str, '%Y/%m/%d')
+                else:
+                    return None
+                hoje = datetime.today()
+                return hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
             except:
                 pass
             return None
@@ -97,15 +153,16 @@ def load_data():
 
     return df
 
-df = load_data()
+df_raw = load_data()
 
-if df.empty:
-    st.error("Nenhum ficheiro encontado (Competicao_Todas_Nova.xlsx ou Competicao_Todas.xlsx). Corra o scrapper V2 primeiro.")
+if df_raw.empty:
+    st.error("Nenhum ficheiro encontado (Competicao_Todas.xlsx). Corra o scrapper primeiro.")
 else:
-    # --- FILTROS LATERAIS ---
-    st.sidebar.header("🔍 Filtros de Scouting")
+    df = df_raw.copy()
     
-    # Categorização das Ligas
+    # --- FILTROS LATERAIS ---
+    st.sidebar.header("🔍 Filtros Scouting")
+    
     categorias_map = {
         "Liga Nacional": ["CP_SerieA", "CP_SerieB", "CP_SerieC", "CP_SerieD", "Liga3_SerieA", "Liga3_SerieB"],
         "1ª Divisão Distrital": ["Braga", "Leiria", "Coimbra", "Vila_Real", "Algarve", "Aveiro", "Castelo_Branco", "Porto", "Lisboa", "Viseu", "Setubal", "Santarem", "Braganca", "Beja", "Evora", "Viana_Castelo", "Guarda", "Portalegre", "Madeira", "Acores"],
@@ -121,11 +178,11 @@ else:
     if categorias_selecionadas:
         df = df[df['Categoria'].isin(categorias_selecionadas)]
         
-    divisoes = st.sidebar.multiselect("Divisão", options=df['Divisao'].dropna().unique())
+    divisoes = st.sidebar.multiselect("Divisão", options=sorted(df['Divisao'].dropna().unique()))
     if divisoes:
         df = df[df['Divisao'].isin(divisoes)]
         
-    equipas = st.sidebar.multiselect("Equipa", options=df['Equipa'].dropna().unique())
+    equipas = st.sidebar.multiselect("Equipa", options=sorted(df['Equipa'].dropna().unique()))
     if equipas:
         df = df[df['Equipa'].isin(equipas)]
         
@@ -161,58 +218,50 @@ else:
     st.markdown("---")
     
     # --- ABAS DE ANÁLISE ---
-    t1, t2, t3, t4, t5 = st.tabs(["🔥 Top Marcadores", "⚡ Eficiência (Mins/Golo)", "📋 Plantel Completo", "⏱️ Destaques U23 (Minutos)", "⚽ Destaques U23 (Golos)"])
+    t1, t2, t3, t4, t5 = st.tabs(["🔥 Top Marcadores", "⚡ Eficiência", "📋 Plantel Completo", "⏱️ U23 (Minutos)", "⚽ U23 (Golos)"])
     
     with t1:
         st.subheader("Maiores Goleadores")
-        top_scorers = df.sort_values('GM', ascending=False).head(15)
-        # Mostrar colunas principais
-        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', '% Tempo Equipa']
+        top_scorers = df.sort_values('GM', ascending=False)
+        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo']
         cols_show = [c for c in cols_show if c in top_scorers.columns]
-        st.dataframe(top_scorers[cols_show].style.format({'% Tempo Equipa': '{:.1f}%'}, na_rep='-'), use_container_width=True)
+        display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
         
     with t2:
         st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
-        df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True).head(15)
-        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', '% Tempo Equipa']
+        df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
+        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo']
         cols_show = [c for c in cols_show if c in df_efic.columns]
-        st.dataframe(df_efic[cols_show].style.format({'% Tempo Equipa': '{:.1f}%'}, na_rep='-'), use_container_width=True)
+        display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
         
     with t3:
-        st.subheader("Base de Dados Filtrada")
-        if len(df) > 1000:
-            st.warning(f"Exibindo 1000 / {len(df)} registos em formato de tabela (para poupar memória). Refine na barra lateral.")
-            st.dataframe(df.head(1000), use_container_width=True)
-        else:
-            st.dataframe(df, use_container_width=True)
+        st.subheader("Base de Dados Completa")
+        display_paginated_df(df, "full_db", "base_dados_completa.xlsx")
 
     with t4:
-        st.subheader("Destaques U23 - Mais Minutos por Liga")
+        st.subheader("Destaques U23 - Mais Minutos por Liga (Top 10)")
         if df['Idade'].notna().sum() > 0:
             df_u23 = df[df['Idade'] < 23]
             if not df_u23.empty:
-                # Top 3 jogadores com mais minutos por divisão
-                top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(3)
-                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Posição', 'J', 'M', 'GM', '% Tempo Equipa']
+                top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
+                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa']
                 cols_show = [c for c in cols_show if c in top_mins_u23.columns]
-                st.dataframe(top_mins_u23[cols_show].style.format({'% Tempo Equipa': '{:.1f}%'}, na_rep='-'), use_container_width=True)
+                display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
             else:
-                st.info("Nenhum jogador U23 encontrado nos dados atuais.")
+                st.info("Nenhum jogador U23 encontrado.")
         else:
-            st.warning("Dados de idade não disponíveis para filtrar U23.")
+            st.warning("Dados de idade não disponíveis.")
 
     with t5:
-        st.subheader("Destaques U23 - Mais Golos por Liga")
+        st.subheader("Destaques U23 - Mais Golos por Liga (Top 10)")
         if df['Idade'].notna().sum() > 0:
             df_u23 = df[df['Idade'] < 23]
             if not df_u23.empty:
-                # Top 3 jogadores com mais golos por divisão
-                top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(3)
-                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Posição', 'J', 'M', 'GM', 'Mins/Golo']
+                top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
+                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo']
                 cols_show = [c for c in cols_show if c in top_gols_u23.columns]
-                st.dataframe(top_gols_u23[cols_show], use_container_width=True)
+                display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
             else:
-                st.info("Nenhum jogador U23 encontrado nos dados atuais.")
+                st.info("Nenhum jogador U23 encontrado.")
         else:
-            st.warning("Dados de idade não disponíveis para filtrar U23.")
-
+            st.warning("Dados de idade não disponíveis.")
