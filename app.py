@@ -23,11 +23,15 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
         format_dict['% Tempo Equipa'] = '{:.1f}%'
     if 'Mins/Golo' in subset.columns:
         format_dict['Mins/Golo'] = '{:.2f}'
+        
+    col_config = {}
+    if 'ZeroZero' in subset.columns:
+        col_config["ZeroZero"] = st.column_config.LinkColumn("ZeroZero", display_text="Ver Perfil")
     
     if format_dict:
-        st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True)
+        st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
     else:
-        st.dataframe(subset, use_container_width=True)
+        st.dataframe(subset, use_container_width=True, column_config=col_config)
     
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -82,10 +86,37 @@ st.title("🛡️ Improve Sports - Scouting Pro")
 
 @st.cache_data
 def load_data():
-    try:
-        df = pd.read_excel("Competicao_Todas.xlsx")
-    except FileNotFoundError:
-        return pd.DataFrame()
+    import sqlite3
+    import os
+    
+    db_path = 'scouting.db'
+    df = None
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            df = pd.read_sql_query("SELECT * FROM scouting_data", conn)
+            conn.close()
+            
+            # Restaurar nomes originais para compatibilidade da App
+            renames = {}
+            if 'Posicao' in df.columns:
+                renames['Posicao'] = 'Posição'
+            if 'Data_Nascimento' in df.columns:
+                renames['Data_Nascimento'] = 'Data Nascimento'
+            if renames:
+                df = df.rename(columns=renames)
+                
+            # O processamento numérico e de cálculos continua abaixo
+        except Exception as e:
+            st.error(f"Erro ao ler BD SQLite: {e}")
+            df = None
+            
+    # Fallback para Excel
+    if df is None or df.empty:
+        try:
+            df = pd.read_excel("Competicao_Todas.xlsx")
+        except FileNotFoundError:
+            return pd.DataFrame()
             
     # Normalize column names for Player
     col_jogador = 'Jogador' if 'Jogador' in df.columns else ('Unnamed: 2' if 'Unnamed: 2' in df.columns else None)
@@ -151,6 +182,10 @@ def load_data():
     if 'Jogador' in df.columns and 'J' in df.columns:
         df = df.sort_values(by=['J', 'M'], ascending=[False, False]).drop_duplicates(subset=['Jogador'], keep='first')
 
+    # Adicionar Hiperligação ZeroZero
+    if 'Jogador_ID' in df.columns:
+        df['ZeroZero'] = df['Jogador_ID'].apply(lambda x: f"https://www.zerozero.pt/jogador.php?id={int(x)}" if pd.notna(x) and str(x).replace('.0','').isdigit() else None)
+
     return df
 
 df_raw = load_data()
@@ -162,6 +197,12 @@ else:
     
     # --- FILTROS LATERAIS ---
     st.sidebar.header("🔍 Filtros Scouting")
+    
+    # Filtro de Nome do Jogador com Dropdown
+    df['Nome_Dropdown'] = df['Jogador'] + " (" + df['Equipa'] + ")"
+    jogadores_selecionados = st.sidebar.multiselect("Procurar Jogador", options=sorted(df['Nome_Dropdown'].dropna().unique()))
+    if jogadores_selecionados:
+        df = df[df['Nome_Dropdown'].isin(jogadores_selecionados)]
     
     categorias_map = {
         "Liga Nacional": ["CP_SerieA", "CP_SerieB", "CP_SerieC", "CP_SerieD", "Liga3_SerieA", "Liga3_SerieB"],
@@ -193,8 +234,11 @@ else:
     if df['Idade'].notna().sum() > 0:
         idade_min = int(df['Idade'].min(skipna=True))
         idade_max = int(df['Idade'].max(skipna=True))
-        idades = st.sidebar.slider("Idade do Jogador", idade_min, idade_max, (idade_min, idade_max))
-        df = df[(df['Idade'].isna()) | ((df['Idade'] >= idades[0]) & (df['Idade'] <= idades[1]))]
+        if idade_min == idade_max:
+            st.sidebar.info(f"Idade única filtrada: {idade_min} anos")
+        else:
+            idades = st.sidebar.slider("Idade do Jogador", idade_min, idade_max, (idade_min, idade_max))
+            df = df[(df['Idade'].isna()) | ((df['Idade'] >= idades[0]) & (df['Idade'] <= idades[1]))]
 
     min_jogos = st.sidebar.slider("Mínimo de Jogos (J)", 0, 50, 5)
     df = df[df['J'] >= min_jogos]
@@ -223,14 +267,14 @@ else:
     with t1:
         st.subheader("Maiores Goleadores")
         top_scorers = df.sort_values('GM', ascending=False)
-        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo']
+        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero']
         cols_show = [c for c in cols_show if c in top_scorers.columns]
         display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
         
     with t2:
         st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
         df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
-        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo']
+        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'ZeroZero']
         cols_show = [c for c in cols_show if c in df_efic.columns]
         display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
         
@@ -244,7 +288,7 @@ else:
             df_u23 = df[df['Idade'] < 23]
             if not df_u23.empty:
                 top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
-                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa']
+                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa', 'ZeroZero']
                 cols_show = [c for c in cols_show if c in top_mins_u23.columns]
                 display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
             else:
@@ -258,7 +302,7 @@ else:
             df_u23 = df[df['Idade'] < 23]
             if not df_u23.empty:
                 top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
-                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo']
+                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero']
                 cols_show = [c for c in cols_show if c in top_gols_u23.columns]
                 display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
             else:
