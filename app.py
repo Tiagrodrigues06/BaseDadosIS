@@ -17,21 +17,26 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
     
     subset = df.head(st.session_state[key])
     
-    # Formatação condicional se colunas existirem
+    # Formatação automática: Floats com 2 casas, Inteiros sem casas
     format_dict = {}
-    if '% Tempo Equipa' in subset.columns:
-        format_dict['% Tempo Equipa'] = '{:.1f}%'
-    if 'Mins/Golo' in subset.columns:
-        format_dict['Mins/Golo'] = '{:.2f}'
+    for col in subset.columns:
+        # Colunas específicas com formatação especial
+        if col == '% Tempo Equipa':
+            format_dict[col] = '{:.1f}%'
+        elif col == 'Mins/Golo':
+            format_dict[col] = '{:.2f}'
+        # Colunas que são inteiros na prática (Golos, Jogos, Idade, etc)
+        elif col in ['Idade', 'J', 'GM', 'T', 'SU', 'M', 'A', 'AA', 'V', 'Equipa_ID', 'Jogador_ID']:
+            format_dict[col] = '{:.0f}'
+        # Outros números decimais
+        elif pd.api.types.is_float_dtype(subset[col]):
+            format_dict[col] = '{:.2f}'
         
     col_config = {}
     if 'ZeroZero' in subset.columns:
         col_config["ZeroZero"] = st.column_config.LinkColumn("ZeroZero", display_text="Ver Perfil")
     
-    if format_dict:
-        st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
-    else:
-        st.dataframe(subset, use_container_width=True, column_config=col_config)
+    st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
     
     c1, c2 = st.columns([1, 1])
     with c1:
