@@ -38,9 +38,7 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
     if 'ZeroZero' in subset.columns:
         col_config["ZeroZero"] = st.column_config.LinkColumn("ZeroZero", display_text="Ver Perfil")
     if 'Relatório (Forms)' in subset.columns:
-        col_config["Relatório (Forms)"] = st.column_config.LinkColumn("Relatório (Forms)", display_text="📝 Solicitar (Form)")
-    if 'Relatório (Email)' in subset.columns:
-        col_config["Relatório (Email)"] = st.column_config.LinkColumn("Relatório (Email)", display_text="📧 Solicitar (Email)")
+        col_config["Relatório (Forms)"] = st.column_config.LinkColumn("Relatório (Forms)", display_text="Ver Relatório")
     
     st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
     
@@ -208,15 +206,7 @@ def load_data():
         nome = str(row.get('Jogador', ''))
         return f"https://docs.google.com/forms/d/e/1FAIpQLScDUMMY_FORM_ID/viewform?usp=pp_url&entry.123456={urllib.parse.quote(nome)}"
         
-    def generate_email_link(row):
-        nome = str(row.get('Jogador', ''))
-        equipa = str(row.get('Equipa', ''))
-        subject = f"Pedido de Relatório de Scouting: {nome}"
-        body = f"Olá, gostaria de solicitar o relatório completo do jogador {nome} ({equipa})."
-        return f"mailto:tiago.rodrigues.642001@gmail.com?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
-
     df['Relatório (Forms)'] = df.apply(generate_form_link, axis=1)
-    df['Relatório (Email)'] = df.apply(generate_email_link, axis=1)
 
     return df
 
@@ -275,7 +265,7 @@ else:
     min_jogos = st.sidebar.slider("Mínimo de Jogos (J)", 0, 50, 5)
     df = df[df['J'] >= min_jogos]
 
-    main_tab1, main_tab2 = st.tabs(["🌍 Visão Geral (Mapa)", "📊 Base de Dados Scouting"])
+    main_tab1, main_tab2 = st.tabs(["🌍 Visão Geral (Mapa)", "🔎 Scouting"])
     
     with main_tab1:
         st.subheader("Panorama de Recrutamento")
@@ -286,7 +276,20 @@ else:
             df_geo = pd.read_excel("Dim_Clubes_Geo.xlsx")
             df_geo = df_geo.dropna(subset=['lat', 'lon'])
             
+            # Definir ligas alvo para relatórios
+            ligas_alvo = [
+                'CP_SerieA', 'CP_SerieB', 'CP_SerieC', 'CP_SerieD', 
+                'Liga3_SerieA', 'Liga3_SerieB', 
+                'Aveiro', 'II_Aveiro', 'Lisboa', 'II_Lisboa_Serie1', 'II_Lisboa_Serie2', 
+                'Porto', 'II_Porto_Serie1', 'II_Porto_Serie2', 'II_Porto_Serie3', 
+                'Sub23-SerieNorte', 'Sub23-SerieSul', 'LigaRev_SerieNorte', 'LigaRev_SerieSul'
+            ]
+            df_rel = df[(df['Divisao'].isin(ligas_alvo)) & (df['M'] >= 300)]
+            rel_counts = df_rel.groupby('Equipa').size().reset_index(name='Relatórios Disponíveis')
+            
             df_counts = df.groupby('Equipa').size().reset_index(name='Jogadores Observados')
+            df_counts = pd.merge(df_counts, rel_counts, on='Equipa', how='left').fillna({'Relatórios Disponíveis': 0})
+            
             df_map = pd.merge(df_counts, df_geo, on='Equipa', how='inner')
             
             if not df_map.empty:
@@ -294,6 +297,8 @@ else:
                 
                 for idx, row in df_map.iterrows():
                     count = row['Jogadores Observados']
+                    rels = int(row['Relatórios Disponíveis'])
+                    
                     if count >= 10: 
                         color = "green"
                         rad = 8
@@ -307,8 +312,8 @@ else:
                     folium.CircleMarker(
                         location=[row['lat'], row['lon']],
                         radius=rad,
-                        popup=f"<b>{row['Equipa']}</b><br>Jogadores Observados: {count}",
-                        tooltip=f"{row['Equipa']} ({count} jogadores)",
+                        popup=f"<b>{row['Equipa']}</b><br>Jogadores Observados: {count}<br>Relatórios Disponíveis: {rels}",
+                        tooltip=f"{row['Equipa']} ({count} jogadores, {rels} relatórios)",
                         color=color,
                         fill=True,
                         fillColor=color,
@@ -346,14 +351,14 @@ else:
         with t1:
             st.subheader("Maiores Goleadores")
             top_scorers = df.sort_values('GM', ascending=False)
-            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)']
             cols_show = [c for c in cols_show if c in top_scorers.columns]
             display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
             
         with t2:
             st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
             df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
-            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)']
             cols_show = [c for c in cols_show if c in df_efic.columns]
             display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
             
@@ -368,7 +373,7 @@ else:
                 df_u23 = df[df['Idade'] < 23]
                 if not df_u23.empty:
                     top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
-                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa', 'ZeroZero', 'Relatório (Forms)']
                     cols_show = [c for c in cols_show if c in top_mins_u23.columns]
                     display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
                 else:
@@ -382,7 +387,7 @@ else:
                 df_u23 = df[df['Idade'] < 23]
                 if not df_u23.empty:
                     top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
-                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)']
                     cols_show = [c for c in cols_show if c in top_gols_u23.columns]
                     display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
                 else:
