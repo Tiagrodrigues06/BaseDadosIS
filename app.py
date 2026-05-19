@@ -382,16 +382,11 @@ else:
             
         with t3:
             st.subheader("Base de Dados Completa")
-            # Comentar colunas A, AA, V e Altura
-            cols_hide = ['Equipa_ID', 'Jogador_ID', 'Nome_Dropdown', 'Categoria', 'A', 'AA', 'V', 'Altura']
-            cols_show = [c for c in df.columns if c not in cols_hide]
-            
-            # Reordenar: Data Nascimento, min/golo, % tempo equipa. E retirar Perfil Jogador do Plantel Completo.
-            base_cols = ['Jogador', 'Equipa', 'Divisao', 'Posição', 'Data Nascimento', 'Idade', 'Mins/Golo', '% Tempo Equipa', 'J', 'M', 'GM', 'T', 'SU']
-            remaining = [c for c in cols_show if c not in base_cols and c not in ['Perfil Jogador', 'Relatório']]
-            # Ocultamos Perfil Jogador no Plantel Completo
-            final_cols = base_cols + remaining + ['Relatório']
-            final_cols = [c for c in final_cols if c in df.columns]
+            # Ordem especifica do utilizador
+            exact_order = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'J', 'M', 'GM', 'T', 'SU', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
+            # Adicionar outras colunas que possam existir (opcional, mas o utilizador pediu esta ordem exata)
+            # Vamos usar apenas as que ele pediu explicitamente + Relatorio (para não perder o Forms)
+            final_cols = [c for c in exact_order if c in df.columns]
             
             df_display = df[final_cols].rename(columns={
                 'J': 'Jogos',
