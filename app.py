@@ -35,10 +35,10 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
             format_dict[col] = '{:.2f}'
         
     col_config = {}
-    if 'ZeroZero' in subset.columns:
-        col_config["ZeroZero"] = st.column_config.LinkColumn("ZeroZero", display_text="Ver Perfil")
-    if 'Relatório (Forms)' in subset.columns:
-        col_config["Relatório (Forms)"] = st.column_config.LinkColumn("Relatório (Forms)", display_text="Ver Relatório")
+    if 'Perfil Jogador' in subset.columns:
+        col_config["Perfil Jogador"] = st.column_config.LinkColumn("Perfil Jogador", display_text="Ver Perfil")
+    if 'Relatório' in subset.columns:
+        col_config["Relatório"] = st.column_config.LinkColumn("Relatório", display_text="Ver Relatório")
     
     st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
     
@@ -199,7 +199,7 @@ def load_data():
 
     # Adicionar Hiperligação ZeroZero e Pedidos de Relatório
     if 'Jogador_ID' in df.columns:
-        df['ZeroZero'] = df['Jogador_ID'].apply(lambda x: f"https://www.zerozero.pt/jogador.php?id={int(x)}" if pd.notna(x) and str(x).replace('.0','').isdigit() else None)
+        df['Perfil Jogador'] = df['Jogador_ID'].apply(lambda x: f"https://www.zerozero.pt/jogador.php?id={int(x)}" if pd.notna(x) and str(x).replace('.0','').isdigit() else None)
 
     import urllib.parse
     def generate_form_link(row):
@@ -208,7 +208,7 @@ def load_data():
         texto_preenchido = f"{nome} [{equipa}]" if equipa else nome
         return f"https://docs.google.com/forms/d/e/1FAIpQLSf40zlpzNzoNvDMl53XIfVvXxKDVRIcOXEoFHaMivzpC4Z2aQ/viewform?usp=pp_url&entry.1156344699={urllib.parse.quote(texto_preenchido)}"
         
-    df['Relatório (Forms)'] = df.apply(generate_form_link, axis=1)
+    df['Relatório'] = df.apply(generate_form_link, axis=1)
 
     return df
 
@@ -353,21 +353,39 @@ else:
         with t1:
             st.subheader("Maiores Goleadores")
             top_scorers = df.sort_values('GM', ascending=False)
-            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)']
+            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Posição', 'J', 'GM', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
             cols_show = [c for c in cols_show if c in top_scorers.columns]
             display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
             
         with t2:
             st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
             df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
-            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)']
+            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
             cols_show = [c for c in cols_show if c in df_efic.columns]
             display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
             
         with t3:
             st.subheader("Base de Dados Completa")
-            cols_show = [c for c in df.columns if c not in ['Equipa_ID', 'Jogador_ID', 'Nome_Dropdown', 'Categoria']]
-            display_paginated_df(df[cols_show], "full_db", "base_dados_completa.xlsx")
+            # Comentar colunas A, AA, V e Altura
+            cols_hide = ['Equipa_ID', 'Jogador_ID', 'Nome_Dropdown', 'Categoria', 'A', 'AA', 'V', 'Altura']
+            cols_show = [c for c in df.columns if c not in cols_hide]
+            
+            # Reordenar: Idade, min/golo, % tempo equipa, e empurrar Perfil Jogador e Relatorio para o fim
+            base_cols = ['Jogador', 'Equipa', 'Divisao', 'Posição', 'Idade', 'Mins/Golo', '% Tempo Equipa', 'J', 'M', 'GM', 'T', 'SU']
+            remaining = [c for c in cols_show if c not in base_cols and c not in ['Perfil Jogador', 'Relatório']]
+            final_cols = base_cols + remaining + ['Perfil Jogador', 'Relatório']
+            final_cols = [c for c in final_cols if c in df.columns]
+            
+            df_display = df[final_cols].rename(columns={
+                'J': 'Jogos',
+                'GM': 'Golos',
+                'Mins/Golo': 'min/golo',
+                'T': 'Titular',
+                'SU': 'Suplente Utilizado',
+                'M': 'Mins'
+            })
+            
+            display_paginated_df(df_display, "full_db", "base_dados_completa.xlsx")
 
         with t4:
             st.subheader("Destaques U23 - Mais Minutos por Liga (Top 10)")
@@ -375,7 +393,7 @@ else:
                 df_u23 = df[df['Idade'] < 23]
                 if not df_u23.empty:
                     top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
-                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa', 'ZeroZero', 'Relatório (Forms)']
+                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Posição', 'J', 'M', '% Tempo Equipa', 'Perfil Jogador', 'Relatório']
                     cols_show = [c for c in cols_show if c in top_mins_u23.columns]
                     display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
                 else:
@@ -389,7 +407,7 @@ else:
                 df_u23 = df[df['Idade'] < 23]
                 if not df_u23.empty:
                     top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
-                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)']
+                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Posição', 'J', 'GM', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
                     cols_show = [c for c in cols_show if c in top_gols_u23.columns]
                     display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
                 else:
