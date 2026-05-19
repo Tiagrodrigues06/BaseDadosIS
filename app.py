@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import io
+import folium
+from streamlit_folium import st_folium
 
 # Helper para exportar Excel
 def to_excel(df):
@@ -35,6 +37,10 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
     col_config = {}
     if 'ZeroZero' in subset.columns:
         col_config["ZeroZero"] = st.column_config.LinkColumn("ZeroZero", display_text="Ver Perfil")
+    if 'Relatório (Forms)' in subset.columns:
+        col_config["Relatório (Forms)"] = st.column_config.LinkColumn("Relatório (Forms)", display_text="📝 Solicitar (Form)")
+    if 'Relatório (Email)' in subset.columns:
+        col_config["Relatório (Email)"] = st.column_config.LinkColumn("Relatório (Email)", display_text="📧 Solicitar (Email)")
     
     st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
     
@@ -54,7 +60,7 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
         )
 
 # Configuração da Página para Look Premium
-st.set_page_config(page_title="Scouting Pro Dashboard", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="Improve Sports: Scouting", layout="wide", page_icon="⚽")
 
 # CSS Avançado
 st.markdown("""
@@ -87,7 +93,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ Improve Sports - Scouting Pro")
+col_logo, col_title = st.columns([1, 10])
+with col_logo:
+    import os
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+with col_title:
+    st.title("Improve Sports: Scouting")
 
 @st.cache_data
 def load_data():
@@ -187,9 +199,24 @@ def load_data():
     if 'Jogador' in df.columns and 'J' in df.columns:
         df = df.sort_values(by=['J', 'M'], ascending=[False, False]).drop_duplicates(subset=['Jogador'], keep='first')
 
-    # Adicionar Hiperligação ZeroZero
+    # Adicionar Hiperligação ZeroZero e Pedidos de Relatório
     if 'Jogador_ID' in df.columns:
         df['ZeroZero'] = df['Jogador_ID'].apply(lambda x: f"https://www.zerozero.pt/jogador.php?id={int(x)}" if pd.notna(x) and str(x).replace('.0','').isdigit() else None)
+
+    import urllib.parse
+    def generate_form_link(row):
+        nome = str(row.get('Jogador', ''))
+        return f"https://docs.google.com/forms/d/e/1FAIpQLScDUMMY_FORM_ID/viewform?usp=pp_url&entry.123456={urllib.parse.quote(nome)}"
+        
+    def generate_email_link(row):
+        nome = str(row.get('Jogador', ''))
+        equipa = str(row.get('Equipa', ''))
+        subject = f"Pedido de Relatório de Scouting: {nome}"
+        body = f"Olá, gostaria de solicitar o relatório completo do jogador {nome} ({equipa})."
+        return f"mailto:tiago.rodrigues.642001@gmail.com?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+
+    df['Relatório (Forms)'] = df.apply(generate_form_link, axis=1)
+    df['Relatório (Email)'] = df.apply(generate_email_link, axis=1)
 
     return df
 
@@ -248,69 +275,117 @@ else:
     min_jogos = st.sidebar.slider("Mínimo de Jogos (J)", 0, 50, 5)
     df = df[df['J'] >= min_jogos]
 
-    # --- DESTAQUES GLOBAIS ---
-    st.markdown("### 🏆 Destaques")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f"<div class='metric-card'><h4>Total Jogadores</h4><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
-    with c2:
-        top_gols = df['GM'].max()
-        st.markdown(f"<div class='metric-card'><h4>Máximo Golos</h4><h2>{int(top_gols)}</h2></div>", unsafe_allow_html=True)
-    with c3:
-        media_idade = df['Idade'].mean()
-        idade_txt = f"{media_idade:.1f}" if pd.notna(media_idade) else "N/A"
-        st.markdown(f"<div class='metric-card'><h4>Média Idades</h4><h2>{idade_txt}</h2></div>", unsafe_allow_html=True)
-    with c4:
-        total_gols = df['GM'].sum()
-        st.markdown(f"<div class='metric-card'><h4>Golos Totais (Filtro)</h4><h2>{int(total_gols)}</h2></div>", unsafe_allow_html=True)
-        
-    st.markdown("---")
+    main_tab1, main_tab2 = st.tabs(["🌍 Visão Geral (Mapa)", "📊 Base de Dados Scouting"])
     
-    # --- ABAS DE ANÁLISE ---
-    t1, t2, t3, t4, t5 = st.tabs(["🔥 Top Marcadores", "⚡ Eficiência", "📋 Plantel Completo", "⏱️ U23 (Minutos)", "⚽ U23 (Golos)"])
-    
-    with t1:
-        st.subheader("Maiores Goleadores")
-        top_scorers = df.sort_values('GM', ascending=False)
-        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero']
-        cols_show = [c for c in cols_show if c in top_scorers.columns]
-        display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
+    with main_tab1:
+        st.subheader("Panorama de Recrutamento")
+        st.markdown("Mapa interativo de clubes baseados nos filtros selecionados.")
         
-    with t2:
-        st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
-        df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
-        cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'ZeroZero']
-        cols_show = [c for c in cols_show if c in df_efic.columns]
-        display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
+        import os
+        if os.path.exists("Dim_Clubes_Geo.xlsx"):
+            df_geo = pd.read_excel("Dim_Clubes_Geo.xlsx")
+            df_geo = df_geo.dropna(subset=['lat', 'lon'])
+            
+            df_counts = df.groupby('Equipa').size().reset_index(name='Jogadores Observados')
+            df_map = pd.merge(df_counts, df_geo, on='Equipa', how='inner')
+            
+            if not df_map.empty:
+                m = folium.Map(location=[39.3999, -8.2245], zoom_start=6, tiles="CartoDB positron")
+                
+                for idx, row in df_map.iterrows():
+                    count = row['Jogadores Observados']
+                    if count >= 10: 
+                        color = "green"
+                        rad = 8
+                    elif count >= 3: 
+                        color = "orange"
+                        rad = 6
+                    else: 
+                        color = "red"
+                        rad = 5
+                        
+                    folium.CircleMarker(
+                        location=[row['lat'], row['lon']],
+                        radius=rad,
+                        popup=f"<b>{row['Equipa']}</b><br>Jogadores Observados: {count}",
+                        tooltip=f"{row['Equipa']} ({count} jogadores)",
+                        color=color,
+                        fill=True,
+                        fillColor=color,
+                        fillOpacity=0.7
+                    ).add_to(m)
+                    
+                st_folium(m, width=1200, height=600, returned_objects=[])
+            else:
+                st.info("Nenhuma equipa no filtro atual possui dados de geolocalização.")
+        else:
+            st.warning("Ficheiro Dim_Clubes_Geo.xlsx não encontrado. Execute o script de geolocalização primeiro.")
+
+    with main_tab2:
+        # --- DESTAQUES GLOBAIS ---
+        st.markdown("### 🏆 Destaques")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.markdown(f"<div class='metric-card'><h4>Total Jogadores</h4><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
+        with c2:
+            top_gols = df['GM'].max()
+            st.markdown(f"<div class='metric-card'><h4>Máximo Golos</h4><h2>{int(top_gols)}</h2></div>", unsafe_allow_html=True)
+        with c3:
+            media_idade = df['Idade'].mean()
+            idade_txt = f"{media_idade:.1f}" if pd.notna(media_idade) else "N/A"
+            st.markdown(f"<div class='metric-card'><h4>Média Idades</h4><h2>{idade_txt}</h2></div>", unsafe_allow_html=True)
+        with c4:
+            total_gols = df['GM'].sum()
+            st.markdown(f"<div class='metric-card'><h4>Golos Totais (Filtro)</h4><h2>{int(total_gols)}</h2></div>", unsafe_allow_html=True)
+            
+        st.markdown("---")
         
-    with t3:
-        st.subheader("Base de Dados Completa")
-        display_paginated_df(df, "full_db", "base_dados_completa.xlsx")
+        # --- ABAS DE ANÁLISE ---
+        t1, t2, t3, t4, t5 = st.tabs(["🔥 Top Marcadores", "⚡ Eficiência", "📋 Plantel Completo", "⏱️ U23 (Minutos)", "⚽ U23 (Golos)"])
+        
+        with t1:
+            st.subheader("Maiores Goleadores")
+            top_scorers = df.sort_values('GM', ascending=False)
+            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+            cols_show = [c for c in cols_show if c in top_scorers.columns]
+            display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
+            
+        with t2:
+            st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
+            df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
+            cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Altura', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+            cols_show = [c for c in cols_show if c in df_efic.columns]
+            display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
+            
+        with t3:
+            st.subheader("Base de Dados Completa")
+            cols_show = [c for c in df.columns if c not in ['Equipa_ID', 'Jogador_ID', 'Nome_Dropdown', 'Categoria']]
+            display_paginated_df(df[cols_show], "full_db", "base_dados_completa.xlsx")
 
-    with t4:
-        st.subheader("Destaques U23 - Mais Minutos por Liga (Top 10)")
-        if df['Idade'].notna().sum() > 0:
-            df_u23 = df[df['Idade'] < 23]
-            if not df_u23.empty:
-                top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
-                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa', 'ZeroZero']
-                cols_show = [c for c in cols_show if c in top_mins_u23.columns]
-                display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
+        with t4:
+            st.subheader("Destaques U23 - Mais Minutos por Liga (Top 10)")
+            if df['Idade'].notna().sum() > 0:
+                df_u23 = df[df['Idade'] < 23]
+                if not df_u23.empty:
+                    top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
+                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'M', '% Tempo Equipa', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+                    cols_show = [c for c in cols_show if c in top_mins_u23.columns]
+                    display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
+                else:
+                    st.info("Nenhum jogador U23 encontrado.")
             else:
-                st.info("Nenhum jogador U23 encontrado.")
-        else:
-            st.warning("Dados de idade não disponíveis.")
+                st.warning("Dados de idade não disponíveis.")
 
-    with t5:
-        st.subheader("Destaques U23 - Mais Golos por Liga (Top 10)")
-        if df['Idade'].notna().sum() > 0:
-            df_u23 = df[df['Idade'] < 23]
-            if not df_u23.empty:
-                top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
-                cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero']
-                cols_show = [c for c in cols_show if c in top_gols_u23.columns]
-                display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
+        with t5:
+            st.subheader("Destaques U23 - Mais Golos por Liga (Top 10)")
+            if df['Idade'].notna().sum() > 0:
+                df_u23 = df[df['Idade'] < 23]
+                if not df_u23.empty:
+                    top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
+                    cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Altura', 'Posição', 'J', 'GM', 'Mins/Golo', 'ZeroZero', 'Relatório (Forms)', 'Relatório (Email)']
+                    cols_show = [c for c in cols_show if c in top_gols_u23.columns]
+                    display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
+                else:
+                    st.info("Nenhum jogador U23 encontrado.")
             else:
-                st.info("Nenhum jogador U23 encontrado.")
-        else:
-            st.warning("Dados de idade não disponíveis.")
+                st.warning("Dados de idade não disponíveis.")
