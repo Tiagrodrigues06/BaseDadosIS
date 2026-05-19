@@ -204,7 +204,9 @@ def load_data():
     import urllib.parse
     def generate_form_link(row):
         nome = str(row.get('Jogador', ''))
-        return f"https://docs.google.com/forms/d/e/1FAIpQLSf40zlpzNzoNvDMl53XIfVvXxKDVRIcOXEoFHaMivzpC4Z2aQ/viewform?usp=pp_url&entry.1156344699={urllib.parse.quote(nome)}"
+        equipa = str(row.get('Equipa', ''))
+        texto_preenchido = f"{nome} [{equipa}]" if equipa else nome
+        return f"https://docs.google.com/forms/d/e/1FAIpQLSf40zlpzNzoNvDMl53XIfVvXxKDVRIcOXEoFHaMivzpC4Z2aQ/viewform?usp=pp_url&entry.1156344699={urllib.parse.quote(texto_preenchido)}"
         
     df['Relatório (Forms)'] = df.apply(generate_form_link, axis=1)
 
