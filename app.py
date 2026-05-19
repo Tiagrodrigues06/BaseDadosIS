@@ -25,10 +25,10 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
         # Colunas específicas com formatação especial
         if col == '% Tempo Equipa':
             format_dict[col] = '{:.1f}%'
-        elif col == 'Mins/Golo':
+        elif col in ['Mins/Golo', 'min/golo']:
             format_dict[col] = '{:.2f}'
         # Colunas que são inteiros na prática (Golos, Jogos, Idade, etc)
-        elif col in ['Idade', 'J', 'GM', 'T', 'SU', 'M', 'A', 'AA', 'V', 'Equipa_ID', 'Jogador_ID']:
+        elif col in ['Idade', 'J', 'GM', 'T', 'SU', 'M', 'A', 'AA', 'V', 'Equipa_ID', 'Jogador_ID', 'Jogos', 'Golos', 'Titular', 'Suplente Utilizado', 'Mins']:
             format_dict[col] = '{:.0f}'
         # Outros números decimais
         elif pd.api.types.is_float_dtype(subset[col]):
@@ -40,7 +40,7 @@ def display_paginated_df(df, key, filename="scouting_export.xlsx"):
     if 'Relatório' in subset.columns:
         col_config["Relatório"] = st.column_config.LinkColumn("Relatório", display_text="Ver Relatório")
     
-    st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, column_config=col_config)
+    st.dataframe(subset.style.format(format_dict, na_rep='-'), use_container_width=True, hide_index=True, column_config=col_config)
     
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -355,14 +355,30 @@ else:
             top_scorers = df.sort_values('GM', ascending=False)
             cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Posição', 'J', 'GM', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
             cols_show = [c for c in cols_show if c in top_scorers.columns]
-            display_paginated_df(top_scorers[cols_show], "top_scorers", "top_marcadores.xlsx")
+            df_display = top_scorers[cols_show].rename(columns={
+                'J': 'Jogos',
+                'GM': 'Golos',
+                'Mins/Golo': 'min/golo',
+                'T': 'Titular',
+                'SU': 'Suplente Utilizado',
+                'M': 'Mins'
+            })
+            display_paginated_df(df_display, "top_scorers", "top_marcadores.xlsx")
             
         with t2:
             st.subheader("Melhor Rácio de Minutos por Golo (Mín. 2 Golos)")
             df_efic = df[df['GM'] >= 2].sort_values('Mins/Golo', ascending=True)
             cols_show = ['Jogador', 'Equipa', 'Divisao', 'Idade', 'Posição', 'J', 'M', 'GM', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
             cols_show = [c for c in cols_show if c in df_efic.columns]
-            display_paginated_df(df_efic[cols_show], "efficiency", "eficiencia.xlsx")
+            df_display = df_efic[cols_show].rename(columns={
+                'J': 'Jogos',
+                'GM': 'Golos',
+                'Mins/Golo': 'min/golo',
+                'T': 'Titular',
+                'SU': 'Suplente Utilizado',
+                'M': 'Mins'
+            })
+            display_paginated_df(df_display, "efficiency", "eficiencia.xlsx")
             
         with t3:
             st.subheader("Base de Dados Completa")
@@ -370,10 +386,11 @@ else:
             cols_hide = ['Equipa_ID', 'Jogador_ID', 'Nome_Dropdown', 'Categoria', 'A', 'AA', 'V', 'Altura']
             cols_show = [c for c in df.columns if c not in cols_hide]
             
-            # Reordenar: Idade, min/golo, % tempo equipa, e empurrar Perfil Jogador e Relatorio para o fim
-            base_cols = ['Jogador', 'Equipa', 'Divisao', 'Posição', 'Idade', 'Mins/Golo', '% Tempo Equipa', 'J', 'M', 'GM', 'T', 'SU']
+            # Reordenar: Data Nascimento, min/golo, % tempo equipa. E retirar Perfil Jogador do Plantel Completo.
+            base_cols = ['Jogador', 'Equipa', 'Divisao', 'Posição', 'Data Nascimento', 'Idade', 'Mins/Golo', '% Tempo Equipa', 'J', 'M', 'GM', 'T', 'SU']
             remaining = [c for c in cols_show if c not in base_cols and c not in ['Perfil Jogador', 'Relatório']]
-            final_cols = base_cols + remaining + ['Perfil Jogador', 'Relatório']
+            # Ocultamos Perfil Jogador no Plantel Completo
+            final_cols = base_cols + remaining + ['Relatório']
             final_cols = [c for c in final_cols if c in df.columns]
             
             df_display = df[final_cols].rename(columns={
@@ -395,7 +412,15 @@ else:
                     top_mins_u23 = df_u23.sort_values(['Divisao', 'M'], ascending=[True, False]).groupby('Divisao').head(10)
                     cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Posição', 'J', 'M', '% Tempo Equipa', 'Perfil Jogador', 'Relatório']
                     cols_show = [c for c in cols_show if c in top_mins_u23.columns]
-                    display_paginated_df(top_mins_u23[cols_show], "u23_mins", "u23_minutos.xlsx")
+                    df_display = top_mins_u23[cols_show].rename(columns={
+                'J': 'Jogos',
+                'GM': 'Golos',
+                'Mins/Golo': 'min/golo',
+                'T': 'Titular',
+                'SU': 'Suplente Utilizado',
+                'M': 'Mins'
+            })
+                    display_paginated_df(df_display, "u23_mins", "u23_minutos.xlsx")
                 else:
                     st.info("Nenhum jogador U23 encontrado.")
             else:
@@ -409,7 +434,15 @@ else:
                     top_gols_u23 = df_u23.sort_values(['Divisao', 'GM'], ascending=[True, False]).groupby('Divisao').head(10)
                     cols_show = ['Divisao', 'Jogador', 'Equipa', 'Idade', 'Posição', 'J', 'GM', 'Mins/Golo', 'Perfil Jogador', 'Relatório']
                     cols_show = [c for c in cols_show if c in top_gols_u23.columns]
-                    display_paginated_df(top_gols_u23[cols_show], "u23_gols", "u23_golos.xlsx")
+                    df_display = top_gols_u23[cols_show].rename(columns={
+                'J': 'Jogos',
+                'GM': 'Golos',
+                'Mins/Golo': 'min/golo',
+                'T': 'Titular',
+                'SU': 'Suplente Utilizado',
+                'M': 'Mins'
+            })
+                    display_paginated_df(df_display, "u23_gols", "u23_golos.xlsx")
                 else:
                     st.info("Nenhum jogador U23 encontrado.")
             else:
