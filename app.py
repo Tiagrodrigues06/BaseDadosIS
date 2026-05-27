@@ -278,15 +278,15 @@ else:
             df_geo = pd.read_excel("Dim_Clubes_Geo.xlsx")
             df_geo = df_geo.dropna(subset=['lat', 'lon'])
             
-            # Definir ligas alvo para relatórios
-            ligas_alvo = [
-                'CP_SerieA', 'CP_SerieB', 'CP_SerieC', 'CP_SerieD', 
-                'Liga3_SerieA', 'Liga3_SerieB', 
-                'Aveiro', 'II_Aveiro', 'Lisboa', 'II_Lisboa_Serie1', 'II_Lisboa_Serie2', 
-                'Porto', 'II_Porto_Serie1', 'II_Porto_Serie2', 'II_Porto_Serie3', 
-                'Sub23-SerieNorte', 'Sub23-SerieSul', 'LigaRev_SerieNorte', 'LigaRev_SerieSul'
-            ]
-            df_rel = df[(df['Divisao'].isin(ligas_alvo)) & (df['M'] >= 300)]
+            # Relatórios Disponíveis (Regras de Negócio)
+            ligas_todos = ['CP_SerieA', 'CP_SerieB', 'CP_SerieC', 'CP_SerieD', 'Liga3_SerieA', 'Liga3_SerieB']
+            ligas_300 = ['Aveiro', 'Lisboa', 'Porto', 'Sub23-SerieNorte', 'Sub23-SerieSul', 'LigaRev_SerieNorte', 'LigaRev_SerieSul']
+            
+            df_rel_todos = df[df['Divisao'].isin(ligas_todos)]
+            df_rel_300 = df[(df['Divisao'].isin(ligas_300)) & (df['M'] >= 300)]
+            
+            import pandas as pd
+            df_rel = pd.concat([df_rel_todos, df_rel_300])
             rel_counts = df_rel.groupby('Equipa').size().reset_index(name='Relatórios Disponíveis')
             
             df_counts = df.groupby('Equipa').size().reset_index(name='Jogadores Observados')
