@@ -267,7 +267,7 @@ else:
     min_jogos = st.sidebar.slider("Mínimo de Jogos (J)", 0, 50, 5)
     df = df[df['J'] >= min_jogos]
 
-    main_tab1, main_tab2 = st.tabs(["🌍 Visão Geral (Mapa)", "🔎 Scouting"])
+    main_tab1, main_tab2, main_tab3 = st.tabs(["🌍 Visão Geral (Mapa)", "🔎 Scouting", "🛒 Mercado & Transferências"])
     
     with main_tab1:
         st.subheader("Panorama de Recrutamento")
@@ -348,7 +348,7 @@ else:
         st.markdown("---")
         
         # --- ABAS DE ANÁLISE ---
-        t1, t2, t3, t4, t5, t6 = st.tabs(["🔥 Top Marcadores", "⚡ Eficiência", "📋 Plantel Completo", "⏱️ U23 (Minutos)", "⚽ U23 (Golos)", "🛒 Mercado & Transferências"])
+        t1, t2, t3, t4, t5 = st.tabs(["🔥 Top Marcadores", "⚡ Eficiência", "📋 Plantel Completo", "⏱️ U23 (Minutos)", "⚽ U23 (Golos)"])
         
         with t1:
             st.subheader("Maiores Goleadores")
@@ -443,92 +443,92 @@ else:
             else:
                 st.warning("Dados de idade não disponíveis.")
                 
-        with t6:
-            st.subheader("Balanço de Mercado e Transferências")
-            st.markdown("Análise de recrutamento: de onde vêm os jogadores dos clubes e como reforçaram o plantel.")
+    with main_tab3:
+        st.subheader("Balanço de Mercado e Transferências")
+        st.markdown("Análise de recrutamento: de onde vêm os jogadores dos clubes e como reforçaram o plantel.")
+        
+        import sqlite3
+        import os
+        
+        df_mercado = pd.DataFrame()
+        tem_dados_mercado = False
             
-            import sqlite3
-            import os
+        # Tentar carregar tabela independente primeiro
+        if os.path.exists('scouting.db'):
+            try:
+                conn = sqlite3.connect('scouting.db')
+                df_mercado = pd.read_sql_query("SELECT * FROM mercado_data", conn)
+                conn.close()
+                tem_dados_mercado = not df_mercado.empty
+            except:
+                pass
+        
+        # Se não existir tabela independente, tenta a base principal
+        if not tem_dados_mercado and 'Clube_Anterior' in df.columns:
+            df_mercado = df.copy()
+            tem_dados_mercado = True
+        
+        if tem_dados_mercado:
+            # Criar dicionário de mapeamento de equipas para divisões (baseado no plantel atual)
+            equipa_to_divisao = dict(zip(df['Equipa'], df['Divisao']))
             
-            df_mercado = pd.DataFrame()
-            tem_dados_mercado = False
+            if 'Divisão Anterior' not in df_mercado.columns:
+                def get_div_anterior(row):
+                    clube_ant = str(row.get('Clube_Anterior', 'Manutenção'))
+                    if pd.isna(clube_ant) or clube_ant == "Manutenção" or clube_ant == "Desconhecido":
+                        return clube_ant
+                    return equipa_to_divisao.get(clube_ant, "Outras Ligas / Estrangeiro")
+                
+                df_mercado['Divisão Anterior'] = df_mercado.apply(get_div_anterior, axis=1)
             
-            # Tentar carregar tabela independente primeiro
-            if os.path.exists('scouting.db'):
-                try:
-                    conn = sqlite3.connect('scouting.db')
-                    df_mercado = pd.read_sql_query("SELECT * FROM mercado_data", conn)
-                    conn.close()
-                    tem_dados_mercado = not df_mercado.empty
-                except:
-                    pass
+            def ranking_divisao(div):
+                if pd.isna(div) or div == "Desconhecido" or div == "Manutenção": return 99
+                div_str = str(div)
+                if "Liga 3" in div_str: return 3
+                if "CP_" in div_str: return 4
+                if "Sub23" in div_str or "LigaRev" in div_str or "sub19" in div_str: return 6 # Formação
+                if "Outras Ligas" in div_str: return 1 # Assumir superior para o que vem fora e não é listado
+                return 5 # Distritais
+                
+            def categorizar_transf(row):
+                if row['Clube_Anterior'] == "Manutenção": return "Mantido no Plantel"
+                rank_atual = ranking_divisao(row['Divisao'])
+                rank_ant = ranking_divisao(row['Divisão Anterior'])
+                if row['Divisão Anterior'] == "Outras Ligas / Estrangeiro": return "Estrangeiro / Ligas Superiores"
+                if rank_ant < rank_atual: return "Veio de Divisão Superior"
+                if rank_ant > rank_atual: return "Veio de Divisão Inferior"
+                return "Mesma Divisão"
             
-            # Se não existir tabela independente, tenta a base principal
-            if not tem_dados_mercado and 'Clube_Anterior' in df.columns:
-                df_mercado = df.copy()
-                tem_dados_mercado = True
+            df_mercado['Origem_Analise'] = df_mercado.apply(categorizar_transf, axis=1)
             
-            if tem_dados_mercado:
-                # Criar dicionário de mapeamento de equipas para divisões (baseado no plantel atual)
-                equipa_to_divisao = dict(zip(df['Equipa'], df['Divisao']))
+            import plotly.express as px
+            
+            c_fig1, c_fig2 = st.columns(2)
+            with c_fig1:
+                st.markdown("**Origem Global do Plantel (Filtro Atual)**")
+                pie_data = df_mercado['Origem_Analise'].value_counts().reset_index()
+                pie_data.columns = ['Categoria', 'Contagem']
+                fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
+                              color_discrete_sequence=px.colors.sequential.Teal)
+                fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
+                st.plotly_chart(fig1, use_container_width=True)
                 
-                if 'Divisão Anterior' not in df_mercado.columns:
-                    def get_div_anterior(row):
-                        clube_ant = str(row.get('Clube_Anterior', 'Manutenção'))
-                        if pd.isna(clube_ant) or clube_ant == "Manutenção" or clube_ant == "Desconhecido":
-                            return clube_ant
-                        return equipa_to_divisao.get(clube_ant, "Outras Ligas / Estrangeiro")
-                    
-                    df_mercado['Divisão Anterior'] = df_mercado.apply(get_div_anterior, axis=1)
-                
-                def ranking_divisao(div):
-                    if pd.isna(div) or div == "Desconhecido" or div == "Manutenção": return 99
-                    div_str = str(div)
-                    if "Liga 3" in div_str: return 3
-                    if "CP_" in div_str: return 4
-                    if "Sub23" in div_str or "LigaRev" in div_str or "sub19" in div_str: return 6 # Formação
-                    if "Outras Ligas" in div_str: return 1 # Assumir superior para o que vem fora e não é listado
-                    return 5 # Distritais
-                    
-                def categorizar_transf(row):
-                    if row['Clube_Anterior'] == "Manutenção": return "Mantido no Plantel"
-                    rank_atual = ranking_divisao(row['Divisao'])
-                    rank_ant = ranking_divisao(row['Divisão Anterior'])
-                    if row['Divisão Anterior'] == "Outras Ligas / Estrangeiro": return "Estrangeiro / Ligas Superiores"
-                    if rank_ant < rank_atual: return "Veio de Divisão Superior"
-                    if rank_ant > rank_atual: return "Veio de Divisão Inferior"
-                    return "Mesma Divisão"
-                
-                df_mercado['Origem_Analise'] = df_mercado.apply(categorizar_transf, axis=1)
-                
-                import plotly.express as px
-                
-                c_fig1, c_fig2 = st.columns(2)
-                with c_fig1:
-                    st.markdown("**Origem Global do Plantel (Filtro Atual)**")
-                    pie_data = df_mercado['Origem_Analise'].value_counts().reset_index()
-                    pie_data.columns = ['Categoria', 'Contagem']
-                    fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
-                                  color_discrete_sequence=px.colors.sequential.Teal)
-                    fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
-                    st.plotly_chart(fig1, use_container_width=True)
-                    
-                with c_fig2:
-                    st.markdown("**Top Clubes Formadores/Fornecedores**")
-                    df_fornecedores = df_mercado[df_mercado['Clube_Anterior'] != "Manutenção"]
-                    if not df_fornecedores.empty:
-                        bar_data = df_fornecedores['Clube_Anterior'].value_counts().head(10).reset_index()
-                        bar_data.columns = ['Clube', 'Jogadores Fornecidos']
-                        fig2 = px.bar(bar_data, x='Jogadores Fornecidos', y='Clube', orientation='h',
-                                      color_discrete_sequence=['#38bdf8'])
-                        fig2.update_layout(yaxis={'categoryorder':'total ascending'}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
-                        st.plotly_chart(fig2, use_container_width=True)
-                    else:
-                        st.info("Não há dados de transferências suficientes neste filtro.")
-                
-                st.markdown("### Lista de Transferências")
-                cols_transf = ['Jogador', 'Equipa', 'Divisao', 'Clube_Anterior', 'Divisão Anterior', 'Tipo_Transferencia', 'Origem_Analise', 'Perfil Jogador']
-                df_transf_display = df_mercado[df_mercado['Clube_Anterior'] != "Manutenção"][cols_transf]
-                display_paginated_df(df_transf_display, "mercado_db", "transferencias.xlsx")
-            else:
-                st.info("Ainda não há dados de Clube Anterior na base de dados. Por favor, corre o atualizar_scouting.bat para recolher esta informação!")
+            with c_fig2:
+                st.markdown("**Top Clubes Formadores/Fornecedores**")
+                df_fornecedores = df_mercado[df_mercado['Clube_Anterior'] != "Manutenção"]
+                if not df_fornecedores.empty:
+                    bar_data = df_fornecedores['Clube_Anterior'].value_counts().head(10).reset_index()
+                    bar_data.columns = ['Clube', 'Jogadores Fornecidos']
+                    fig2 = px.bar(bar_data, x='Jogadores Fornecidos', y='Clube', orientation='h',
+                                  color_discrete_sequence=['#38bdf8'])
+                    fig2.update_layout(yaxis={'categoryorder':'total ascending'}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
+                    st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.info("Não há dados de transferências suficientes neste filtro.")
+            
+            st.markdown("### Lista de Transferências")
+            cols_transf = ['Jogador', 'Equipa', 'Divisao', 'Clube_Anterior', 'Divisão Anterior', 'Tipo_Transferencia', 'Origem_Analise', 'Perfil Jogador']
+            df_transf_display = df_mercado[df_mercado['Clube_Anterior'] != "Manutenção"][cols_transf]
+            display_paginated_df(df_transf_display, "mercado_db", "transferencias.xlsx")
+        else:
+            st.info("Ainda não há dados de Clube Anterior na base de dados. Por favor, corre o atualizar_scouting.bat para recolher esta informação!")
