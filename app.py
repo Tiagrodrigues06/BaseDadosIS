@@ -454,9 +454,9 @@ else:
         tem_dados_mercado = False
         
         # Tentar carregar tabela independente primeiro
-        if os.path.exists('scouting.db'):
+        if os.path.exists('Dados_Competicoes/scouting.db'):
             try:
-                conn = sqlite3.connect('scouting.db')
+                conn = sqlite3.connect('Dados_Competicoes/scouting.db')
                 df_mercado = pd.read_sql_query("SELECT * FROM mercado_data", conn)
                 conn.close()
                 tem_dados_mercado = not df_mercado.empty
