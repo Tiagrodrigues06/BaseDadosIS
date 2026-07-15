@@ -472,9 +472,9 @@ else:
             # Excluir equipas do Brasil e França da análise
             df_mercado = df_mercado[~df_mercado['Divisao'].isin(['Copinha', 'National1'])]
             
-            # Sincronizar com a barra lateral (se não for "Todas")
-            if "Todas" not in divisao_sel:
-                df_mercado = df_mercado[df_mercado['Divisao'].isin(divisao_sel)]
+            # Sincronizar com a barra lateral (se houver seleções)
+            if divisoes:
+                df_mercado = df_mercado[df_mercado['Divisao'].isin(divisoes)]
             
             # Filtro por Clube
             clubes_disponiveis = ["Todos os Clubes"] + sorted(df_mercado['Equipa'].dropna().unique().tolist())
