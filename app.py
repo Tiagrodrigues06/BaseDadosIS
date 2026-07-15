@@ -466,8 +466,8 @@ else:
                 df_mercado = pd.read_sql_query("SELECT * FROM mercado_data", conn)
                 conn.close()
                 tem_dados_mercado = not df_mercado.empty
-            except:
-                pass
+            except Exception as e:
+                st.error(f"DEBUG: Erro ao carregar mercado_data do db {db_path_mercado}: {e}")
         
         # Se não existir tabela independente, tenta a base principal
         if not tem_dados_mercado and 'Clube_Anterior' in df.columns:
@@ -598,13 +598,25 @@ else:
                 st.markdown("---")
                 st.markdown("### 🌟 Destaques de Transferências")
                 st.markdown("Jogadores (até 24 anos) transferidos com historial Internacional ou Formação em clubes da 1ª/2ª Liga.")
+                
                 if 'Internacional' in df_mercado.columns:
-                    destaques = df_transf_display[(df_transf_display['Internacional'] != 'Não') | (df_transf_display['Formacao_Topo'] != 'Não')]
+                    # Aplicar os mesmos filtros de liga e origem aos destaques
+                    destaques = df_mercado.copy()
+                    if filtro_origem:
+                        destaques = destaques[destaques['Origem_Analise'].isin(filtro_origem)]
+                    if filtro_liga:
+                        destaques = destaques[destaques['Divisão Simplificada'].isin(filtro_liga)]
+                        
+                    # Filtrar apenas quem tem internacional ou formação e tem idade <= 24
+                    destaques = destaques[(destaques['Internacional'] != 'Não') | (destaques['Formacao_Topo'] != 'Não')]
+                    
                     if not destaques.empty:
-                        cols_destaque = ['Jogador', 'Equipa', 'Idade', 'Internacional', 'Formacao_Topo', 'Perfil Jogador']
-                        display_paginated_df(destaques[cols_destaque], "destaques_db", "destaques.xlsx")
+                        # Selecionar e ordenar as colunas para apresentar
+                        cols_destaque = ['Jogador', 'Equipa', 'Idade', 'Clube_Anterior', 'Internacional', 'Formacao_Topo']
+                        destaques = destaques[cols_destaque].sort_values(by=['Equipa', 'Jogador'])
+                        display_paginated_df(destaques, "destaques_db", "destaques.xlsx")
                     else:
-                        st.info("Nenhum destaque (Sub-24 com historial de topo) encontrado para os filtros atuais.")
+                        st.info("Nenhum jogador de destaque encontrado para os filtros selecionados.")
                 else:
                     st.info("Os dados de histórico ainda não foram extraídos. Corre a nova versão do bot!")
         else:
