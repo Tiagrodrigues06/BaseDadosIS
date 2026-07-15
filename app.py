@@ -472,6 +472,10 @@ else:
             # Excluir equipas do Brasil e França da análise
             df_mercado = df_mercado[~df_mercado['Divisao'].isin(['Copinha', 'National1'])]
             
+            # Sincronizar com a barra lateral (se não for "Todas")
+            if "Todas" not in divisao_sel:
+                df_mercado = df_mercado[df_mercado['Divisao'].isin(divisao_sel)]
+            
             # Filtro por Clube
             clubes_disponiveis = ["Todos os Clubes"] + sorted(df_mercado['Equipa'].dropna().unique().tolist())
             clube_selecionado = st.selectbox("Filtrar por Clube", clubes_disponiveis)
@@ -521,14 +525,22 @@ else:
                     st.markdown("**Origem Global do Plantel**")
                     pie_data = df_mercado['Origem_Analise'].value_counts().reset_index()
                     pie_data.columns = ['Categoria', 'Contagem']
+                    
+                    vivid_colors = ['#3b82f6', '#ef4444', '#eab308', '#22c55e', '#a855f7']
                     fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
-                                  color_discrete_sequence=px.colors.sequential.Teal)
-                    fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
+                                  color_discrete_sequence=vivid_colors)
+                    fig1.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)', 
+                        font_color='white',
+                        legend=dict(font=dict(size=14)),
+                        height=500
+                    )
+                    fig1.update_traces(textinfo='percent+label', textfont_size=16)
                     st.plotly_chart(fig1, use_container_width=True)
                     
                 with c_fig2:
                     st.markdown("**Origem por Liga / Divisão (%)**")
-                    # Calcular percentagens em relação ao total (incluindo manutenções)
                     divisao_data = df_mercado['Divisão Anterior'].value_counts(normalize=True).reset_index()
                     divisao_data.columns = ['Divisão', 'Percentagem']
                     divisao_data['Percentagem'] = divisao_data['Percentagem'] * 100
@@ -546,19 +558,43 @@ else:
                         return 'Distritais'
                     
                     divisao_data['Divisão'] = divisao_data['Divisão'].apply(normalizar_nome_liga)
-                    
-                    # Como agregámos nomes (ex: vários CP_Serie somados), agrupamos novamente
                     divisao_data = divisao_data.groupby('Divisão', as_index=False)['Percentagem'].sum()
                     
                     fig2 = px.bar(divisao_data, x='Percentagem', y='Divisão', orientation='h',
-                                  color_discrete_sequence=['#38bdf8'])
-                    fig2.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Percentagem (%)", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
+                                  color_discrete_sequence=['#ef4444'])
+                    fig2.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Percentagem (%)", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', height=500, font=dict(size=14))
                     st.plotly_chart(fig2, use_container_width=True)
+                
+                st.markdown("### Filtros de Transferências")
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    filtro_origem = st.multiselect("Origem Global", options=df_mercado['Origem_Analise'].unique().tolist(), default=[])
+                with col_f2:
+                    df_mercado['Divisão Simplificada'] = df_mercado['Divisão Anterior'].apply(normalizar_nome_liga)
+                    filtro_liga = st.multiselect("Origem por Liga", options=df_mercado['Divisão Simplificada'].unique().tolist(), default=[])
+                
+                df_transf_display = df_mercado.copy()
+                if filtro_origem:
+                    df_transf_display = df_transf_display[df_transf_display['Origem_Analise'].isin(filtro_origem)]
+                if filtro_liga:
+                    df_transf_display = df_transf_display[df_transf_display['Divisão Simplificada'].isin(filtro_liga)]
                 
                 st.markdown("### Lista de Transferências")
                 cols_transf = ['Jogador', 'Equipa', 'Divisao', 'Clube_Anterior', 'Divisão Anterior', 'Tipo_Transferencia', 'Origem_Analise', 'Perfil Jogador']
-                # Mostrar todos os jogadores, incluindo os que permaneceram
-                df_transf_display = df_mercado[cols_transf].sort_values(by=['Clube_Anterior'])
+                df_transf_display = df_transf_display[cols_transf].sort_values(by=['Clube_Anterior'])
                 display_paginated_df(df_transf_display, "mercado_db", "transferencias.xlsx")
+                
+                st.markdown("---")
+                st.markdown("### 🌟 Destaques de Transferências")
+                st.markdown("Jogadores (até 24 anos) transferidos com historial Internacional ou Formação em clubes da 1ª/2ª Liga.")
+                if 'Internacional' in df_mercado.columns:
+                    destaques = df_transf_display[(df_transf_display['Internacional'] != 'Não') | (df_transf_display['Formacao_Topo'] != 'Não')]
+                    if not destaques.empty:
+                        cols_destaque = ['Jogador', 'Equipa', 'Idade', 'Internacional', 'Formacao_Topo', 'Perfil Jogador']
+                        display_paginated_df(destaques[cols_destaque], "destaques_db", "destaques.xlsx")
+                    else:
+                        st.info("Nenhum destaque (Sub-24 com historial de topo) encontrado para os filtros atuais.")
+                else:
+                    st.info("Os dados de histórico ainda não foram extraídos. Corre a nova versão do bot!")
         else:
             st.info("Ainda não há dados de Clube Anterior na base de dados. Por favor, corre o atualizar_scouting.bat para recolher esta informação!")
