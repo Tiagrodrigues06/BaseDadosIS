@@ -524,12 +524,30 @@ else:
                 
                 df_mercado['Origem_Analise'] = df_mercado.apply(categorizar_transf, axis=1)
                 
+                # FILTROS PARA OS GRÁFICOS
+                st.markdown("### 📊 Gráficos de Origem")
+                col_graf1, col_graf2 = st.columns(2)
+                with col_graf1:
+                    filtro_graf_liga = st.multiselect("Filtrar por Liga", options=sorted(df_mercado['Divisao'].dropna().unique()))
+                with col_graf2:
+                    if filtro_graf_liga:
+                        clubes_possiveis = sorted(df_mercado[df_mercado['Divisao'].isin(filtro_graf_liga)]['Equipa'].dropna().unique())
+                    else:
+                        clubes_possiveis = sorted(df_mercado['Equipa'].dropna().unique())
+                    filtro_graf_clube = st.multiselect("Filtrar por Clube", options=clubes_possiveis)
+                
+                df_graficos = df_mercado.copy()
+                if filtro_graf_liga:
+                    df_graficos = df_graficos[df_graficos['Divisao'].isin(filtro_graf_liga)]
+                if filtro_graf_clube:
+                    df_graficos = df_graficos[df_graficos['Equipa'].isin(filtro_graf_clube)]
+                
                 import plotly.express as px
                 
                 c_fig1, c_fig2 = st.columns(2)
                 with c_fig1:
                     st.markdown("**Origem Global do Plantel**")
-                    pie_data = df_mercado['Origem_Analise'].value_counts().reset_index()
+                    pie_data = df_graficos['Origem_Analise'].value_counts().reset_index()
                     pie_data.columns = ['Categoria', 'Contagem']
                     
                     fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
@@ -545,7 +563,7 @@ else:
                     
                 with c_fig2:
                     st.markdown("**Origem por Liga / Divisão (%)**")
-                    divisao_data = df_mercado['Divisão Anterior'].value_counts(normalize=True).reset_index()
+                    divisao_data = df_graficos['Divisão Anterior'].value_counts(normalize=True).reset_index()
                     divisao_data.columns = ['Divisão', 'Percentagem']
                     divisao_data['Percentagem'] = divisao_data['Percentagem'] * 100
                     
@@ -576,15 +594,19 @@ else:
                     )
                     st.plotly_chart(fig2, use_container_width=True)
                 
-                st.markdown("### Filtros de Transferências")
-                col_f1, col_f2 = st.columns(2)
+                st.markdown("### 📋 Filtros de Transferências")
+                col_f1, col_f2, col_f3 = st.columns(3)
                 with col_f1:
-                    filtro_origem = st.multiselect("Origem Global", options=df_mercado['Origem_Analise'].unique().tolist(), default=[])
+                    filtro_equipa_transf = st.multiselect("Filtrar por Equipa Atual", options=sorted(df_mercado['Equipa'].dropna().unique()), default=[])
                 with col_f2:
+                    filtro_origem = st.multiselect("Origem Global", options=df_mercado['Origem_Analise'].unique().tolist(), default=[])
+                with col_f3:
                     df_mercado['Divisão Simplificada'] = df_mercado['Divisão Anterior'].apply(normalizar_nome_liga)
                     filtro_liga = st.multiselect("Origem por Liga", options=df_mercado['Divisão Simplificada'].unique().tolist(), default=[])
                 
                 df_transf_display = df_mercado.copy()
+                if filtro_equipa_transf:
+                    df_transf_display = df_transf_display[df_transf_display['Equipa'].isin(filtro_equipa_transf)]
                 if filtro_origem:
                     df_transf_display = df_transf_display[df_transf_display['Origem_Analise'].isin(filtro_origem)]
                 if filtro_liga:
@@ -600,12 +622,28 @@ else:
                 st.markdown("Jogadores (até 24 anos) transferidos com historial Internacional ou Formação em clubes da 1ª/2ª Liga.")
                 
                 if 'Internacional' in df_mercado.columns:
-                    # Aplicar os mesmos filtros de liga e origem aos destaques
+                    # Filtros independentes para os destaques
+                    col_d1, col_d2, col_d3 = st.columns(3)
+                    with col_d1:
+                        filtro_dest_liga = st.multiselect("Liga Atual (Dest)", options=sorted(df_mercado['Divisao'].dropna().unique()), default=[])
+                    with col_d2:
+                        if filtro_dest_liga:
+                            clubes_dest_possiveis = sorted(df_mercado[df_mercado['Divisao'].isin(filtro_dest_liga)]['Equipa'].dropna().unique())
+                        else:
+                            clubes_dest_possiveis = sorted(df_mercado['Equipa'].dropna().unique())
+                        filtro_dest_equipa = st.multiselect("Equipa Atual (Dest)", options=clubes_dest_possiveis, default=[])
+                    with col_d3:
+                        filtro_dest_div_origem = st.multiselect("Divisão de Origem (Dest)", options=df_mercado['Divisão Simplificada'].unique().tolist(), default=[])
+
                     destaques = df_mercado.copy()
-                    if filtro_origem:
-                        destaques = destaques[destaques['Origem_Analise'].isin(filtro_origem)]
-                    if filtro_liga:
-                        destaques = destaques[destaques['Divisão Simplificada'].isin(filtro_liga)]
+                    
+                    # Aplicar filtros dos destaques
+                    if filtro_dest_liga:
+                        destaques = destaques[destaques['Divisao'].isin(filtro_dest_liga)]
+                    if filtro_dest_equipa:
+                        destaques = destaques[destaques['Equipa'].isin(filtro_dest_equipa)]
+                    if filtro_dest_div_origem:
+                        destaques = destaques[destaques['Divisão Simplificada'].isin(filtro_dest_div_origem)]
                         
                     # Filtrar apenas quem tem internacional ou formação e tem idade <= 24
                     destaques = destaques[(destaques['Internacional'] != 'Não') | (destaques['Formacao_Topo'] != 'Não')]
