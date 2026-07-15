@@ -526,17 +526,15 @@ else:
                     pie_data = df_mercado['Origem_Analise'].value_counts().reset_index()
                     pie_data.columns = ['Categoria', 'Contagem']
                     
-                    vivid_colors = ['#3b82f6', '#ef4444', '#eab308', '#22c55e', '#a855f7']
                     fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
-                                  color_discrete_sequence=vivid_colors)
+                                  color_discrete_sequence=px.colors.sequential.Teal)
                     fig1.update_layout(
                         paper_bgcolor='rgba(0,0,0,0)', 
                         plot_bgcolor='rgba(0,0,0,0)', 
                         font_color='white',
-                        legend=dict(font=dict(size=14)),
-                        height=500
+                        legend=dict(font=dict(size=16)),
+                        hoverlabel=dict(font_size=16)
                     )
-                    fig1.update_traces(textinfo='percent+label', textfont_size=16)
                     st.plotly_chart(fig1, use_container_width=True)
                     
                 with c_fig2:
@@ -561,8 +559,15 @@ else:
                     divisao_data = divisao_data.groupby('Divisão', as_index=False)['Percentagem'].sum()
                     
                     fig2 = px.bar(divisao_data, x='Percentagem', y='Divisão', orientation='h',
-                                  color_discrete_sequence=['#ef4444'])
-                    fig2.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Percentagem (%)", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', height=500, font=dict(size=14))
+                                  color_discrete_sequence=['#38bdf8'])
+                    fig2.update_layout(
+                        yaxis={'categoryorder':'total ascending'}, 
+                        xaxis_title="Percentagem (%)", 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)', 
+                        font_color='white',
+                        hoverlabel=dict(font_size=16)
+                    )
                     st.plotly_chart(fig2, use_container_width=True)
                 
                 st.markdown("### Filtros de Transferências")
