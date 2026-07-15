@@ -532,8 +532,23 @@ else:
                     divisao_data = df_mercado['Divisão Anterior'].value_counts(normalize=True).reset_index()
                     divisao_data.columns = ['Divisão', 'Percentagem']
                     divisao_data['Percentagem'] = divisao_data['Percentagem'] * 100
-                    # Renomear 'Manutenção' para 'Plantel Atual' para ficar mais claro
-                    divisao_data['Divisão'] = divisao_data['Divisão'].replace('Manutenção', 'Ficou no Plantel')
+                    
+                    def normalizar_nome_liga(nome):
+                        if nome == 'Manutenção': return 'Ficou no Plantel'
+                        if pd.isna(nome): return 'Desconhecido'
+                        nome_str = str(nome).lower()
+                        if 'desconhecido' in nome_str: return 'Desconhecido'
+                        if 'cp_' in nome_str or 'cp ' in nome_str or 'campeonato' in nome_str: return 'Campeonato Portugal'
+                        if 'liga 3' in nome_str or 'liga3' in nome_str: return 'Liga 3'
+                        if 'sub 19' in nome_str or 'sub19' in nome_str or 'juni' in nome_str: return 'Sub 19'
+                        if 'sub 23' in nome_str or 'sub23' in nome_str or 'ligarev' in nome_str: return 'Sub 23'
+                        if 'outras ligas' in nome_str or 'estrangeiro' in nome_str: return 'Outras Ligas / Estrangeiro'
+                        return 'Distritais'
+                    
+                    divisao_data['Divisão'] = divisao_data['Divisão'].apply(normalizar_nome_liga)
+                    
+                    # Como agregámos nomes (ex: vários CP_Serie somados), agrupamos novamente
+                    divisao_data = divisao_data.groupby('Divisão', as_index=False)['Percentagem'].sum()
                     
                     fig2 = px.bar(divisao_data, x='Percentagem', y='Divisão', orientation='h',
                                   color_discrete_sequence=['#38bdf8'])
