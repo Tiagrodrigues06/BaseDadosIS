@@ -650,7 +650,7 @@ else:
                     
                     if not destaques.empty:
                         # Selecionar e ordenar as colunas para apresentar
-                        cols_destaque = ['Jogador', 'Equipa', 'Idade', 'Clube_Anterior', 'Internacional', 'Formacao_Topo']
+                        cols_destaque = ['Jogador', 'Equipa', 'Idade', 'Clube_Anterior', 'Internacional', 'Formacao_Topo', 'Perfil Jogador']
                         destaques = destaques[cols_destaque].sort_values(by=['Equipa', 'Jogador'])
                         display_paginated_df(destaques, "destaques_db", "destaques.xlsx")
                     else:
