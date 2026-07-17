@@ -623,7 +623,7 @@ else:
                 
                 if 'Internacional' in df_mercado.columns:
                     # Filtros independentes para os destaques
-                    col_d1, col_d2, col_d3 = st.columns(3)
+                    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
                     with col_d1:
                         filtro_dest_liga = st.multiselect("Liga Atual (Dest)", options=sorted(df_mercado['Divisao'].dropna().unique()), default=[])
                     with col_d2:
@@ -633,7 +633,9 @@ else:
                             clubes_dest_possiveis = sorted(df_mercado['Equipa'].dropna().unique())
                         filtro_dest_equipa = st.multiselect("Equipa Atual (Dest)", options=clubes_dest_possiveis, default=[])
                     with col_d3:
-                        filtro_dest_div_origem = st.multiselect("Divisão de Origem (Dest)", options=df_mercado['Divisão Simplificada'].unique().tolist(), default=[])
+                        filtro_dest_formacao = st.multiselect("Formação Topo", options=["Sim", "Não"], default=[])
+                    with col_d4:
+                        filtro_dest_internacional = st.multiselect("Internacional", options=["Sim", "Não"], default=[])
 
                     destaques = df_mercado.copy()
                     
@@ -642,8 +644,20 @@ else:
                         destaques = destaques[destaques['Divisao'].isin(filtro_dest_liga)]
                     if filtro_dest_equipa:
                         destaques = destaques[destaques['Equipa'].isin(filtro_dest_equipa)]
-                    if filtro_dest_div_origem:
-                        destaques = destaques[destaques['Divisão Simplificada'].isin(filtro_dest_div_origem)]
+                        
+                    # Aplicar filtro de Formação Topo
+                    if filtro_dest_formacao:
+                        if "Sim" in filtro_dest_formacao and "Não" not in filtro_dest_formacao:
+                            destaques = destaques[destaques['Formacao_Topo'] != 'Não']
+                        elif "Não" in filtro_dest_formacao and "Sim" not in filtro_dest_formacao:
+                            destaques = destaques[destaques['Formacao_Topo'] == 'Não']
+                            
+                    # Aplicar filtro de Internacional
+                    if filtro_dest_internacional:
+                        if "Sim" in filtro_dest_internacional and "Não" not in filtro_dest_internacional:
+                            destaques = destaques[destaques['Internacional'] != 'Não']
+                        elif "Não" in filtro_dest_internacional and "Sim" not in filtro_dest_internacional:
+                            destaques = destaques[destaques['Internacional'] == 'Não']
                         
                     # Filtrar apenas quem tem internacional ou formação e tem idade <= 24
                     destaques = destaques[(destaques['Internacional'] != 'Não') | (destaques['Formacao_Topo'] != 'Não')]
