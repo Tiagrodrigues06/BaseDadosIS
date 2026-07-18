@@ -500,7 +500,25 @@ else:
                         clube_ant = str(row.get('Clube_Anterior', 'Manutenção'))
                         if pd.isna(clube_ant) or clube_ant == "Manutenção" or clube_ant == "Desconhecido":
                             return clube_ant
-                        return equipa_to_divisao.get(clube_ant, "Outras Ligas / Estrangeiro")
+                            
+                        # Equipas B/C ou sub 19 coloca formacao
+                        clube_upper = clube_ant.upper()
+                        if any(term in clube_upper for term in [" [B]", " B ", " [C]", " C ", "SUB", "JUN", "S19", "S23", "S17", "B]"]):
+                            return "Formação"
+                            
+                        if clube_ant in equipa_to_divisao:
+                            return equipa_to_divisao[clube_ant]
+                            
+                        # Separa a Primeira Liga e Segunda Liga
+                        clubes_top = ['Benfica', 'FC Porto', 'Sporting', 'SC Braga', 'Vitória SC', 'Famalicão', 'Moreirense', 'Arouca', 'Estoril', 'Casa Pia', 'Farense', 'Rio Ave', 'Boavista', 'Estrela', 'Gil Vicente', 'Nacional', 'Santa Clara', 'AVS']
+                        clubes_segunda = ['Portimonense', 'Marítimo', 'Paços de Ferreira', 'Mafra', 'Penafiel', 'Tondela', 'Torreense', 'Leiria', 'Feirense', 'Académico', 'Leixões', 'Oliveirense', 'Felgueiras', 'Alverca', 'Vizela', 'Chaves']
+                        
+                        if any(c in clube_ant for c in clubes_top):
+                            return "Primeira Liga"
+                        if any(c in clube_ant for c in clubes_segunda):
+                            return "Segunda Liga"
+                            
+                        return "Estrangeiro"
                     
                     df_mercado['Divisão Anterior'] = df_mercado.apply(get_div_anterior, axis=1)
                 
@@ -509,17 +527,21 @@ else:
                     div_str = str(div)
                     if "Primeira Liga" in div_str: return 1
                     if "Segunda Liga" in div_str: return 2
+                    if "Estrangeiro" in div_str: return 1
                     if "Liga 3" in div_str or "Liga3" in div_str: return 3
                     if "CP_" in div_str: return 4
-                    if "Sub23" in div_str or "LigaRev" in div_str or "sub19" in div_str: return 6 # Formação
-                    if "Outras Ligas" in div_str: return 1 # Assumir superior para o que vem fora e não é listado
+                    if "Formação" in div_str or "Sub23" in div_str or "LigaRev" in div_str or "sub19" in div_str: return 6 # Formação
                     return 5 # Distritais
                     
                 def categorizar_transf(row):
                     if row['Clube_Anterior'] == "Manutenção": return "Mantido no Plantel"
+                    if row['Divisão Anterior'] == "Formação": return "Formação"
+                    if row['Divisão Anterior'] == "Estrangeiro": return "Estrangeiro"
+                    if row['Divisão Anterior'] == "Primeira Liga": return "Primeira Liga"
+                    if row['Divisão Anterior'] == "Segunda Liga": return "Segunda Liga"
+                    
                     rank_atual = ranking_divisao(row['Divisao'])
                     rank_ant = ranking_divisao(row['Divisão Anterior'])
-                    if row['Divisão Anterior'] == "Outras Ligas / Estrangeiro": return "Estrangeiro / Ligas Superiores"
                     if rank_ant < rank_atual: return "Veio de Divisão Superior"
                     if rank_ant > rank_atual: return "Veio de Divisão Inferior"
                     return "Mesma Divisão"
@@ -574,11 +596,12 @@ else:
                         if pd.isna(nome): return 'Desconhecido'
                         nome_str = str(nome).lower()
                         if 'desconhecido' in nome_str: return 'Desconhecido'
+                        if 'primeira liga' in nome_str: return 'Primeira Liga'
+                        if 'segunda liga' in nome_str: return 'Segunda Liga'
+                        if 'formação' in nome_str or 'sub 19' in nome_str or 'sub19' in nome_str or 'juni' in nome_str or 'sub 23' in nome_str or 'sub23' in nome_str or 'ligarev' in nome_str: return 'Formação'
+                        if 'estrangeiro' in nome_str or 'outras ligas' in nome_str: return 'Estrangeiro'
                         if 'cp_' in nome_str or 'cp ' in nome_str or 'campeonato' in nome_str: return 'Campeonato Portugal'
                         if 'liga 3' in nome_str or 'liga3' in nome_str: return 'Liga 3'
-                        if 'sub 19' in nome_str or 'sub19' in nome_str or 'juni' in nome_str: return 'Sub 19'
-                        if 'sub 23' in nome_str or 'sub23' in nome_str or 'ligarev' in nome_str: return 'Sub 23'
-                        if 'outras ligas' in nome_str or 'estrangeiro' in nome_str: return 'Outras Ligas / Estrangeiro'
                         return 'Distritais'
                     
                     divisao_data['Divisão'] = divisao_data['Divisão'].apply(normalizar_nome_liga)
