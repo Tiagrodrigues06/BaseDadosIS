@@ -633,7 +633,8 @@ else:
                             clubes_dest_possiveis = sorted(df_mercado['Equipa'].dropna().unique())
                         filtro_dest_equipa = st.multiselect("Equipa Atual (Dest)", options=clubes_dest_possiveis, default=[])
                     with col_d3:
-                        filtro_dest_formacao = st.multiselect("Formação Topo", options=["Sim", "Não"], default=[])
+                        opcoes_formacao = [str(x) for x in df_mercado['Formacao_Topo'].dropna().unique() if str(x) != 'Não']
+                        filtro_dest_formacao = st.multiselect("Formação Topo", options=sorted(opcoes_formacao), default=[])
                     with col_d4:
                         filtro_dest_internacional = st.multiselect("Internacional", options=["Sim", "Não"], default=[])
 
@@ -647,10 +648,7 @@ else:
                         
                     # Aplicar filtro de Formação Topo
                     if filtro_dest_formacao:
-                        if "Sim" in filtro_dest_formacao and "Não" not in filtro_dest_formacao:
-                            destaques = destaques[destaques['Formacao_Topo'] != 'Não']
-                        elif "Não" in filtro_dest_formacao and "Sim" not in filtro_dest_formacao:
-                            destaques = destaques[destaques['Formacao_Topo'] == 'Não']
+                        destaques = destaques[destaques['Formacao_Topo'].isin(filtro_dest_formacao)]
                             
                     # Aplicar filtro de Internacional
                     if filtro_dest_internacional:
