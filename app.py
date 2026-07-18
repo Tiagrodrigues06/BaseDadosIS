@@ -507,7 +507,9 @@ else:
                 def ranking_divisao(div):
                     if pd.isna(div) or div == "Desconhecido" or div == "Manutenção": return 99
                     div_str = str(div)
-                    if "Liga 3" in div_str: return 3
+                    if "Primeira Liga" in div_str: return 1
+                    if "Segunda Liga" in div_str: return 2
+                    if "Liga 3" in div_str or "Liga3" in div_str: return 3
                     if "CP_" in div_str: return 4
                     if "Sub23" in div_str or "LigaRev" in div_str or "sub19" in div_str: return 6 # Formação
                     if "Outras Ligas" in div_str: return 1 # Assumir superior para o que vem fora e não é listado
