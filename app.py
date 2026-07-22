@@ -493,7 +493,7 @@ else:
                 st.warning("Sem dados de transferências para os filtros selecionados.")
             else:
                 # Criar dicionário de mapeamento de equipas para divisões (baseado no plantel atual)
-                equipa_to_divisao = dict(zip(df['Equipa'], df['Divisao']))
+                equipa_to_divisao = dict(zip(df_mercado['Equipa'], df_mercado['Divisao']))
                 
                 if 'Divisão Anterior' not in df_mercado.columns:
                     def get_div_anterior(row):
