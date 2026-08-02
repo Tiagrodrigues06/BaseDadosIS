@@ -556,147 +556,154 @@ else:
                 
                 df_mercado['Origem_Analise'] = df_mercado.apply(categorizar_transf, axis=1)
                 
-                # FILTROS PARA OS GRÁFICOS
-                st.markdown("### 📊 Gráficos de Origem")
-                col_graf1, col_graf2 = st.columns(2)
-                with col_graf1:
-                    filtro_graf_liga = st.multiselect("Filtrar por Liga", options=sorted(df_mercado['Divisao'].dropna().unique()))
-                with col_graf2:
-                    if filtro_graf_liga:
-                        clubes_possiveis = sorted(df_mercado[df_mercado['Divisao'].isin(filtro_graf_liga)]['Equipa'].dropna().unique())
+                # =======================================================
+                # 🎛️ FILTROS GLOBAIS DO MERCADO
+                # =======================================================
+                st.markdown("### 🎛️ Filtros Globais do Mercado")
+                st.markdown("*(Estes filtros aplicam-se aos Gráficos, à Lista de Transferências e aos Destaques em simultâneo)*")
+                
+                # Mover a função normalizar_nome_liga cá para cima
+                def normalizar_nome_liga(nome):
+                    if nome == 'Manutenção': return 'Ficou no Plantel'
+                    if pd.isna(nome): return 'Desconhecido'
+                    nome_str = str(nome).lower()
+                    if 'desconhecido' in nome_str: return 'Desconhecido'
+                    if 'primeira liga' in nome_str: return 'Primeira Liga'
+                    if 'segunda liga' in nome_str: return 'Segunda Liga'
+                    if 'formação' in nome_str or 'sub 19' in nome_str or 'sub19' in nome_str or 'juni' in nome_str or 'sub 23' in nome_str or 'sub23' in nome_str or 'ligarev' in nome_str: return 'Formação'
+                    if 'estrangeiro' in nome_str or 'outras ligas' in nome_str: return 'Estrangeiro'
+                    if 'cp_' in nome_str or 'cp ' in nome_str or 'campeonato' in nome_str: return 'Campeonato Portugal'
+                    if 'liga 3' in nome_str or 'liga3' in nome_str: return 'Liga 3'
+                    return 'Distritais'
+                    
+                df_mercado['Divisão Simplificada'] = df_mercado['Divisão Anterior'].apply(normalizar_nome_liga)
+                
+                col_g1, col_g2, col_g3 = st.columns(3)
+                with col_g1:
+                    gl_liga = st.multiselect("Liga Atual", options=sorted(df_mercado['Divisao'].dropna().unique()), default=[])
+                with col_g2:
+                    if gl_liga:
+                        clubes_possiveis = sorted(df_mercado[df_mercado['Divisao'].isin(gl_liga)]['Equipa'].dropna().unique())
                     else:
                         clubes_possiveis = sorted(df_mercado['Equipa'].dropna().unique())
-                    filtro_graf_clube = st.multiselect("Filtrar por Clube", options=clubes_possiveis)
+                    gl_equipa = st.multiselect("Clube Atual", options=clubes_possiveis, default=[])
+                with col_g3:
+                    gl_origem = st.multiselect("Origem (Liga/Divisão)", options=sorted(df_mercado['Divisão Simplificada'].unique().tolist()), default=[])
                 
-                df_graficos = df_mercado.copy()
-                if filtro_graf_liga:
-                    df_graficos = df_graficos[df_graficos['Divisao'].isin(filtro_graf_liga)]
-                if filtro_graf_clube:
-                    df_graficos = df_graficos[df_graficos['Equipa'].isin(filtro_graf_clube)]
+                col_g4, col_g5 = st.columns(2)
+                with col_g4:
+                    if 'Formacao_Topo' in df_mercado.columns:
+                        opcoes_formacao = [str(x) for x in df_mercado['Formacao_Topo'].dropna().unique() if str(x) != 'Não']
+                        gl_formacao = st.multiselect("Passagem Formação Topo", options=sorted(opcoes_formacao), default=[])
+                    else:
+                        gl_formacao = []
+                with col_g5:
+                    if 'Internacional' in df_mercado.columns:
+                        gl_internacional = st.multiselect("Historial Internacional", options=["Sim", "Não"], default=[])
+                    else:
+                        gl_internacional = []
+                        
+                # APLICAR FILTROS GLOBAIS
+                df_filtrado = df_mercado.copy()
+                
+                if gl_liga:
+                    df_filtrado = df_filtrado[df_filtrado['Divisao'].isin(gl_liga)]
+                if gl_equipa:
+                    df_filtrado = df_filtrado[df_filtrado['Equipa'].isin(gl_equipa)]
+                if gl_origem:
+                    df_filtrado = df_filtrado[df_filtrado['Divisão Simplificada'].isin(gl_origem)]
+                if gl_formacao:
+                    df_filtrado = df_filtrado[df_filtrado['Formacao_Topo'].isin(gl_formacao)]
+                if gl_internacional:
+                    if "Sim" in gl_internacional and "Não" not in gl_internacional:
+                        df_filtrado = df_filtrado[df_filtrado['Internacional'] != 'Não']
+                    elif "Não" in gl_internacional and "Sim" not in gl_internacional:
+                        df_filtrado = df_filtrado[df_filtrado['Internacional'] == 'Não']
+                        
+                st.markdown("---")
+                
+                # =======================================================
+                # 📊 GRÁFICOS DE ORIGEM
+                # =======================================================
+                st.markdown("### 📊 Gráficos de Origem (Para a seleção atual)")
                 
                 import plotly.express as px
-                
                 c_fig1, c_fig2 = st.columns(2)
+                
                 with c_fig1:
                     st.markdown("**Origem Global do Plantel**")
-                    pie_data = df_graficos['Origem_Analise'].value_counts().reset_index()
-                    pie_data.columns = ['Categoria', 'Contagem']
-                    
-                    fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
-                                  color_discrete_sequence=px.colors.sequential.Teal)
-                    fig1.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)', 
-                        plot_bgcolor='rgba(0,0,0,0)', 
-                        font_color='white',
-                        legend=dict(font=dict(size=16)),
-                        hoverlabel=dict(font_size=16)
-                    )
-                    st.plotly_chart(fig1, use_container_width=True)
-                    
+                    if not df_filtrado.empty:
+                        pie_data = df_filtrado['Origem_Analise'].value_counts().reset_index()
+                        pie_data.columns = ['Categoria', 'Contagem']
+                        
+                        fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
+                                      color_discrete_sequence=px.colors.sequential.Teal)
+                        fig1.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)', 
+                            font_color='white',
+                            legend=dict(font=dict(size=16)),
+                            hoverlabel=dict(font_size=16)
+                        )
+                        st.plotly_chart(fig1, use_container_width=True)
+                    else:
+                        st.warning("Sem dados para gerar gráfico.")
+                        
                 with c_fig2:
                     st.markdown("**Origem por Liga / Divisão (%)**")
-                    divisao_data = df_graficos['Divisão Anterior'].value_counts(normalize=True).reset_index()
-                    divisao_data.columns = ['Divisão', 'Percentagem']
-                    divisao_data['Percentagem'] = divisao_data['Percentagem'] * 100
+                    if not df_filtrado.empty:
+                        divisao_data = df_filtrado['Divisão Anterior'].value_counts(normalize=True).reset_index()
+                        divisao_data.columns = ['Divisão', 'Percentagem']
+                        divisao_data['Percentagem'] = divisao_data['Percentagem'] * 100
+                        divisao_data['Divisão'] = divisao_data['Divisão'].apply(normalizar_nome_liga)
+                        divisao_data = divisao_data.groupby('Divisão', as_index=False)['Percentagem'].sum()
+                        
+                        fig2 = px.bar(divisao_data, x='Percentagem', y='Divisão', orientation='h',
+                                      color_discrete_sequence=['#38bdf8'])
+                        fig2.update_layout(
+                            yaxis={'categoryorder':'total ascending'}, 
+                            xaxis_title="Percentagem (%)", 
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)', 
+                            font_color='white',
+                            hoverlabel=dict(font_size=16)
+                        )
+                        st.plotly_chart(fig2, use_container_width=True)
+                    else:
+                        st.warning("Sem dados para gerar gráfico.")
+                
+                # =======================================================
+                # 📋 LISTA DE TRANSFERÊNCIAS
+                # =======================================================
+                st.markdown("### 📋 Lista de Transferências")
+                if not df_filtrado.empty:
+                    cols_transf = ['Jogador', 'Equipa', 'Divisao', 'Clube_Anterior', 'Divisão Anterior', 'Tipo_Transferencia', 'Origem_Analise', 'Perfil Jogador']
+                    # Filtrar apenas as colunas que existem no dataframe
+                    cols_transf_validas = [col for col in cols_transf if col in df_filtrado.columns]
+                    df_transf_display = df_filtrado[cols_transf_validas].sort_values(by=['Clube_Anterior'])
+                    display_paginated_df(df_transf_display, "mercado_db", "transferencias.xlsx")
+                else:
+                    st.warning("Sem dados de transferências para os filtros selecionados.")
                     
-                    def normalizar_nome_liga(nome):
-                        if nome == 'Manutenção': return 'Ficou no Plantel'
-                        if pd.isna(nome): return 'Desconhecido'
-                        nome_str = str(nome).lower()
-                        if 'desconhecido' in nome_str: return 'Desconhecido'
-                        if 'primeira liga' in nome_str: return 'Primeira Liga'
-                        if 'segunda liga' in nome_str: return 'Segunda Liga'
-                        if 'formação' in nome_str or 'sub 19' in nome_str or 'sub19' in nome_str or 'juni' in nome_str or 'sub 23' in nome_str or 'sub23' in nome_str or 'ligarev' in nome_str: return 'Formação'
-                        if 'estrangeiro' in nome_str or 'outras ligas' in nome_str: return 'Estrangeiro'
-                        if 'cp_' in nome_str or 'cp ' in nome_str or 'campeonato' in nome_str: return 'Campeonato Portugal'
-                        if 'liga 3' in nome_str or 'liga3' in nome_str: return 'Liga 3'
-                        return 'Distritais'
-                    
-                    divisao_data['Divisão'] = divisao_data['Divisão'].apply(normalizar_nome_liga)
-                    divisao_data = divisao_data.groupby('Divisão', as_index=False)['Percentagem'].sum()
-                    
-                    fig2 = px.bar(divisao_data, x='Percentagem', y='Divisão', orientation='h',
-                                  color_discrete_sequence=['#38bdf8'])
-                    fig2.update_layout(
-                        yaxis={'categoryorder':'total ascending'}, 
-                        xaxis_title="Percentagem (%)", 
-                        paper_bgcolor='rgba(0,0,0,0)', 
-                        plot_bgcolor='rgba(0,0,0,0)', 
-                        font_color='white',
-                        hoverlabel=dict(font_size=16)
-                    )
-                    st.plotly_chart(fig2, use_container_width=True)
-                
-                st.markdown("### 📋 Filtros de Transferências")
-                col_f1, col_f2, col_f3 = st.columns(3)
-                with col_f1:
-                    filtro_equipa_transf = st.multiselect("Filtrar por Equipa Atual", options=sorted(df_mercado['Equipa'].dropna().unique()), default=[])
-                with col_f2:
-                    filtro_origem = st.multiselect("Origem Global", options=df_mercado['Origem_Analise'].unique().tolist(), default=[])
-                with col_f3:
-                    df_mercado['Divisão Simplificada'] = df_mercado['Divisão Anterior'].apply(normalizar_nome_liga)
-                    filtro_liga = st.multiselect("Origem por Liga", options=df_mercado['Divisão Simplificada'].unique().tolist(), default=[])
-                
-                df_transf_display = df_mercado.copy()
-                if filtro_equipa_transf:
-                    df_transf_display = df_transf_display[df_transf_display['Equipa'].isin(filtro_equipa_transf)]
-                if filtro_origem:
-                    df_transf_display = df_transf_display[df_transf_display['Origem_Analise'].isin(filtro_origem)]
-                if filtro_liga:
-                    df_transf_display = df_transf_display[df_transf_display['Divisão Simplificada'].isin(filtro_liga)]
-                
-                st.markdown("### Lista de Transferências")
-                cols_transf = ['Jogador', 'Equipa', 'Divisao', 'Clube_Anterior', 'Divisão Anterior', 'Tipo_Transferencia', 'Origem_Analise', 'Perfil Jogador']
-                df_transf_display = df_transf_display[cols_transf].sort_values(by=['Clube_Anterior'])
-                display_paginated_df(df_transf_display, "mercado_db", "transferencias.xlsx")
-                
                 st.markdown("---")
+                
+                # =======================================================
+                # 🌟 DESTAQUES DE TRANSFERÊNCIAS
+                # =======================================================
                 st.markdown("### 🌟 Destaques de Transferências")
                 st.markdown("Jogadores (até 24 anos) transferidos com historial Internacional ou Formação em clubes da 1ª/2ª Liga.")
                 
                 if 'Internacional' in df_mercado.columns:
-                    # Filtros independentes para os destaques
-                    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-                    with col_d1:
-                        filtro_dest_liga = st.multiselect("Liga Atual (Dest)", options=sorted(df_mercado['Divisao'].dropna().unique()), default=[])
-                    with col_d2:
-                        if filtro_dest_liga:
-                            clubes_dest_possiveis = sorted(df_mercado[df_mercado['Divisao'].isin(filtro_dest_liga)]['Equipa'].dropna().unique())
-                        else:
-                            clubes_dest_possiveis = sorted(df_mercado['Equipa'].dropna().unique())
-                        filtro_dest_equipa = st.multiselect("Equipa Atual (Dest)", options=clubes_dest_possiveis, default=[])
-                    with col_d3:
-                        opcoes_formacao = [str(x) for x in df_mercado['Formacao_Topo'].dropna().unique() if str(x) != 'Não']
-                        filtro_dest_formacao = st.multiselect("Formação Topo", options=sorted(opcoes_formacao), default=[])
-                    with col_d4:
-                        filtro_dest_internacional = st.multiselect("Internacional", options=["Sim", "Não"], default=[])
-
-                    destaques = df_mercado.copy()
+                    destaques = df_filtrado.copy()
                     
-                    # Aplicar filtros dos destaques
-                    if filtro_dest_liga:
-                        destaques = destaques[destaques['Divisao'].isin(filtro_dest_liga)]
-                    if filtro_dest_equipa:
-                        destaques = destaques[destaques['Equipa'].isin(filtro_dest_equipa)]
-                        
-                    # Aplicar filtro de Formação Topo
-                    if filtro_dest_formacao:
-                        destaques = destaques[destaques['Formacao_Topo'].isin(filtro_dest_formacao)]
-                            
-                    # Aplicar filtro de Internacional
-                    if filtro_dest_internacional:
-                        if "Sim" in filtro_dest_internacional and "Não" not in filtro_dest_internacional:
-                            destaques = destaques[destaques['Internacional'] != 'Não']
-                        elif "Não" in filtro_dest_internacional and "Sim" not in filtro_dest_internacional:
-                            destaques = destaques[destaques['Internacional'] == 'Não']
-                        
-                    # Filtrar apenas quem tem internacional ou formação e tem idade <= 24
+                    # Filtrar apenas quem tem internacional ou formação (excluir os 'Não')
                     destaques = destaques[(destaques['Internacional'] != 'Não') | (destaques['Formacao_Topo'] != 'Não')]
                     
                     if not destaques.empty:
                         # Selecionar e ordenar as colunas para apresentar
                         cols_destaque = ['Jogador', 'Equipa', 'Idade', 'Clube_Anterior', 'Internacional', 'Formacao_Topo', 'Perfil Jogador']
-                        destaques = destaques[cols_destaque].sort_values(by=['Equipa', 'Jogador'])
+                        cols_dest_validas = [col for col in cols_destaque if col in destaques.columns]
+                        destaques = destaques[cols_dest_validas].sort_values(by=['Equipa', 'Jogador'])
                         display_paginated_df(destaques, "destaques_db", "destaques.xlsx")
                     else:
                         st.info("Nenhum jogador de destaque encontrado para os filtros selecionados.")
