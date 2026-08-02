@@ -467,7 +467,7 @@ else:
                 conn.close()
                 tem_dados_mercado = not df_mercado.empty
             except Exception as e:
-                st.error(f"DEBUG: Erro ao carregar mercado_data do db {db_path_mercado}: {e}")
+                st.error(f"Erro ao carregar mercado_data: {e}")
         
         # Se não existir tabela independente, tenta a base principal
         if not tem_dados_mercado and 'Clube_Anterior' in df.columns:
@@ -500,8 +500,8 @@ else:
                         df_mapa = pd.read_sql_query("SELECT Equipa, Divisao FROM map_clubes_divisao", conn_map)
                         equipa_to_divisao = dict(zip(df_mapa['Equipa'], df_mapa['Divisao']))
                         conn_map.close()
-                    except Exception as e:
-                        st.error(f"DEBUG: Falha ao carregar map_clubes_divisao: {e}")
+                    except Exception:
+                        pass
                 
                 # Fallback para os dados atuais se a tabela falhar
                 if not equipa_to_divisao:
@@ -528,12 +528,6 @@ else:
                             
                         return f"Estrangeiro (Not Found: '{clube_ant}')"
                     
-                    st.write("DEBUG - Tamanho equipa_to_divisao:", len(equipa_to_divisao))
-                    if 'Guarda FC' in equipa_to_divisao:
-                        st.write("DEBUG - Guarda FC está no dicionário e mapeia para:", equipa_to_divisao['Guarda FC'])
-                    else:
-                        st.write("DEBUG - Guarda FC NÃO está no dicionário!")
-                        
                     df_mercado['Divisão Anterior'] = df_mercado.apply(get_div_anterior, axis=1)
                 
                 def ranking_divisao(div):
