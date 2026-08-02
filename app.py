@@ -492,8 +492,25 @@ else:
             if df_mercado.empty:
                 st.warning("Sem dados de transferências para os filtros selecionados.")
             else:
-                # Criar dicionário de mapeamento de equipas para divisões (baseado no plantel atual)
-                equipa_to_divisao = dict(zip(df_mercado['Equipa'], df_mercado['Divisao']))
+                # Carregar o dicionário global de clubes para divisões
+                equipa_to_divisao = {}
+                if db_path_mercado:
+                    try:
+                        conn_map = sqlite3.connect(db_path_mercado)
+                        df_mapa = pd.read_sql_query("SELECT Equipa, Divisao FROM map_clubes_divisao", conn_map)
+                        equipa_to_divisao = dict(zip(df_mapa['Equipa'], df_mapa['Divisao']))
+                        conn_map.close()
+                    except Exception as e:
+                        st.error(f"DEBUG: Falha ao carregar map_clubes_divisao: {e}")
+                
+                # Fallback para os dados atuais se a tabela falhar
+                if not equipa_to_divisao:
+                    equipa_to_divisao = dict(zip(df_mercado['Equipa'], df_mercado['Divisao']))
+                else:
+                    # Garantir que as do df_mercado atual também existem (caso falte alguma na bd global)
+                    for eq, div in zip(df_mercado['Equipa'], df_mercado['Divisao']):
+                        if eq not in equipa_to_divisao:
+                            equipa_to_divisao[eq] = div
                 
                 if 'Divisão Anterior' not in df_mercado.columns:
                     def get_div_anterior(row):
@@ -509,17 +526,14 @@ else:
                         if clube_ant in equipa_to_divisao:
                             return equipa_to_divisao[clube_ant]
                             
-                        # Separa a Primeira Liga e Segunda Liga
-                        clubes_top = ['Benfica', 'FC Porto', 'Sporting', 'SC Braga', 'Vitória SC', 'Famalicão', 'Moreirense', 'Arouca', 'Estoril', 'Casa Pia', 'Farense', 'Rio Ave', 'Boavista', 'Estrela', 'Gil Vicente', 'Nacional', 'Santa Clara', 'AVS']
-                        clubes_segunda = ['Portimonense', 'Marítimo', 'Paços de Ferreira', 'Mafra', 'Penafiel', 'Tondela', 'Torreense', 'Leiria', 'Feirense', 'Académico', 'Leixões', 'Oliveirense', 'Felgueiras', 'Alverca', 'Vizela', 'Chaves']
-                        
-                        if any(c in clube_ant for c in clubes_top):
-                            return "Primeira Liga"
-                        if any(c in clube_ant for c in clubes_segunda):
-                            return "Segunda Liga"
-                            
-                        return "Estrangeiro"
+                        return f"Estrangeiro (Not Found: '{clube_ant}')"
                     
+                    st.write("DEBUG - Tamanho equipa_to_divisao:", len(equipa_to_divisao))
+                    if 'Guarda FC' in equipa_to_divisao:
+                        st.write("DEBUG - Guarda FC está no dicionário e mapeia para:", equipa_to_divisao['Guarda FC'])
+                    else:
+                        st.write("DEBUG - Guarda FC NÃO está no dicionário!")
+                        
                     df_mercado['Divisão Anterior'] = df_mercado.apply(get_div_anterior, axis=1)
                 
                 def ranking_divisao(div):
