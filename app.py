@@ -607,26 +607,63 @@ else:
             st.markdown("---")
             
             # =======================================================
-            # 📊 GRÁFICOS DE ORIGEM
+            # 📊 GRÁFICOS DE ORIGEM (COM CONTEXTO)
             # =======================================================
-            st.markdown("### 📊 Gráficos de Origem (Para a seleção atual)")
+            st.markdown("### 📊 Gráficos de Origem (Contexto da Liga)")
             
             import plotly.express as px
+            import pandas as pd
+            
+            dfs_to_plot = []
+            
+            # GRUPO 1: A Seleção
+            if not df_filtrado.empty:
+                df1 = df_filtrado.copy()
+                if gl_equipa:
+                    nome_grupo1 = "Clube(s) Selecionado(s)"
+                elif gl_liga:
+                    nome_grupo1 = "Liga(s) Selecionada(s)"
+                else:
+                    nome_grupo1 = "Média Nacional"
+                    
+                dfs_to_plot.append((nome_grupo1, df1))
+            
+            # GRUPO 2: O Contexto
+            if gl_equipa:
+                # Contexto são as Ligas dos clubes selecionados
+                ligas_contexto = df_mercado[df_mercado['Equipa'].isin(gl_equipa)]['Divisao'].dropna().unique()
+                df2 = df_mercado[df_mercado['Divisao'].isin(ligas_contexto)]
+                dfs_to_plot.append(("Média da Liga", df2))
+            elif gl_liga:
+                # Contexto é o país todo
+                df2 = df_mercado.copy()
+                dfs_to_plot.append(("Média Nacional", df2))
+            
             c_fig1, c_fig2 = st.columns(2)
             
             with c_fig1:
                 st.markdown("**Origem Global do Plantel**")
-                if not df_filtrado.empty:
-                    pie_data = df_filtrado['Origem_Analise'].value_counts().reset_index()
-                    pie_data.columns = ['Categoria', 'Contagem']
-                    
-                    fig1 = px.pie(pie_data, names='Categoria', values='Contagem', hole=0.4,
-                                  color_discrete_sequence=px.colors.sequential.Teal)
+                all_pie_data = []
+                for nome_grupo, df_g in dfs_to_plot:
+                    if not df_g.empty:
+                        d = df_g['Origem_Analise'].value_counts(normalize=True).reset_index()
+                        d.columns = ['Categoria', 'Percentagem']
+                        d['Percentagem'] = d['Percentagem'] * 100
+                        d['Grupo'] = nome_grupo
+                        all_pie_data.append(d)
+                
+                if all_pie_data:
+                    final_pie_data = pd.concat(all_pie_data)
+                    fig1 = px.bar(final_pie_data, x='Percentagem', y='Categoria', color='Grupo', barmode='group', orientation='h',
+                                  color_discrete_sequence=['#38bdf8', '#64748b'])
                     fig1.update_layout(
+                        yaxis={'categoryorder':'total ascending'}, 
+                        xaxis_title="Percentagem (%)",
+                        yaxis_title="",
                         paper_bgcolor='rgba(0,0,0,0)', 
                         plot_bgcolor='rgba(0,0,0,0)', 
                         font_color='white',
-                        legend=dict(font=dict(size=16)),
+                        legend=dict(title="", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                         hoverlabel=dict(font_size=16)
                     )
                     st.plotly_chart(fig1, use_container_width=True)
@@ -634,22 +671,30 @@ else:
                     st.warning("Sem dados para gerar gráfico.")
                     
             with c_fig2:
-                st.markdown("**Origem por Liga / Divisão (%)**")
-                if not df_filtrado.empty:
-                    divisao_data = df_filtrado['Divisão Anterior'].value_counts(normalize=True).reset_index()
-                    divisao_data.columns = ['Divisão', 'Percentagem']
-                    divisao_data['Percentagem'] = divisao_data['Percentagem'] * 100
-                    divisao_data['Divisão'] = divisao_data['Divisão'].apply(normalizar_nome_liga)
-                    divisao_data = divisao_data.groupby('Divisão', as_index=False)['Percentagem'].sum()
-                    
-                    fig2 = px.bar(divisao_data, x='Percentagem', y='Divisão', orientation='h',
-                                  color_discrete_sequence=['#38bdf8'])
+                st.markdown("**Origem por Liga / Divisão**")
+                all_div_data = []
+                for nome_grupo, df_g in dfs_to_plot:
+                    if not df_g.empty:
+                        d = df_g['Divisão Anterior'].value_counts(normalize=True).reset_index()
+                        d.columns = ['Divisão', 'Percentagem']
+                        d['Percentagem'] = d['Percentagem'] * 100
+                        d['Divisão'] = d['Divisão'].apply(normalizar_nome_liga)
+                        d = d.groupby('Divisão', as_index=False)['Percentagem'].sum()
+                        d['Grupo'] = nome_grupo
+                        all_div_data.append(d)
+                
+                if all_div_data:
+                    final_div_data = pd.concat(all_div_data)
+                    fig2 = px.bar(final_div_data, x='Percentagem', y='Divisão', color='Grupo', barmode='group', orientation='h',
+                                  color_discrete_sequence=['#38bdf8', '#64748b'])
                     fig2.update_layout(
                         yaxis={'categoryorder':'total ascending'}, 
-                        xaxis_title="Percentagem (%)", 
+                        xaxis_title="Percentagem (%)",
+                        yaxis_title="",
                         paper_bgcolor='rgba(0,0,0,0)', 
                         plot_bgcolor='rgba(0,0,0,0)', 
                         font_color='white',
+                        legend=dict(title="", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                         hoverlabel=dict(font_size=16)
                     )
                     st.plotly_chart(fig2, use_container_width=True)
