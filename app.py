@@ -496,34 +496,24 @@ else:
                     if eq not in equipa_to_divisao:
                         equipa_to_divisao[eq] = div
             
-            # ===== NOVO: CORREÇÕES MANUAIS DE DIVISÃO =====
-            correcoes_manuais = {
-                "SC Covilhã": "Liga 3",
-                "Belenenses": "Liga 3", 
-                "FC Felgueiras": "Segunda Liga",
-                "FC Felgueiras 1932": "Segunda Liga",
-                "UDR Santa Maria": "Distritais",
-                "Guarda FC": "Campeonato Portugal",
-                "Benf. Castelo Branco": "Campeonato Portugal",
-                "Bragança": "Campeonato Portugal",
-                "CD Gouveia": "Distritais",
-                "O Elvas": "Campeonato Portugal",
-                "Caldas SC": "Liga 3",
-                "FC Alverca": "Segunda Liga",
-                "Torreense": "Segunda Liga",
-                "Tirsense": "Campeonato Portugal",
-                "Ovarense": "Campeonato Portugal",
-                "Amora FC": "Campeonato Portugal",
-                "Vianense": "Campeonato Portugal",
-                "Estoril Praia": "Primeira Liga",
-                "USC Paredes": "Campeonato Portugal",
-                "Fut. Benfica": "Distritais",
-                "Est. Amadora": "Primeira Liga",
-                "UD Leiria": "Segunda Liga",
-                "1º Dezembro": "Liga 3",
-                "Académica": "Liga 3"
+            # Carregar Divisões Anteriores (Época 24/25)
+            equipa_to_divisao_anterior = {}
+            if db_path_mercado:
+                try:
+                    conn_map = sqlite3.connect(db_path_mercado)
+                    df_mapa_ant = pd.read_sql_query("SELECT Equipa, Divisao FROM map_clubes_divisao_anterior", conn_map)
+                    equipa_to_divisao_anterior = dict(zip(df_mapa_ant['Equipa'], df_mapa_ant['Divisao']))
+                    conn_map.close()
+                except Exception:
+                    equipa_to_divisao_anterior = equipa_to_divisao.copy()
+
+            if not equipa_to_divisao_anterior:
+                equipa_to_divisao_anterior = equipa_to_divisao.copy()
+                
+            correcoes_nomes = {
+                "FC Felgueiras": "FC Felgueiras 1932",
+                "AVS": "AFS"
             }
-            equipa_to_divisao.update(correcoes_manuais)
             # ===============================================
 
             
