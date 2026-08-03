@@ -496,6 +496,37 @@ else:
                     if eq not in equipa_to_divisao:
                         equipa_to_divisao[eq] = div
             
+            # ===== NOVO: CORREÇÕES MANUAIS DE DIVISÃO =====
+            correcoes_manuais = {
+                "SC Covilhã": "Liga 3",
+                "Belenenses": "Liga 3", 
+                "FC Felgueiras": "Segunda Liga",
+                "FC Felgueiras 1932": "Segunda Liga",
+                "UDR Santa Maria": "Distritais",
+                "Guarda FC": "Campeonato Portugal",
+                "Benf. Castelo Branco": "Campeonato Portugal",
+                "Bragança": "Campeonato Portugal",
+                "CD Gouveia": "Distritais",
+                "O Elvas": "Campeonato Portugal",
+                "Caldas SC": "Liga 3",
+                "FC Alverca": "Segunda Liga",
+                "Torreense": "Segunda Liga",
+                "Tirsense": "Campeonato Portugal",
+                "Ovarense": "Campeonato Portugal",
+                "Amora FC": "Campeonato Portugal",
+                "Vianense": "Campeonato Portugal",
+                "Estoril Praia": "Primeira Liga",
+                "USC Paredes": "Campeonato Portugal",
+                "Fut. Benfica": "Distritais",
+                "Est. Amadora": "Primeira Liga",
+                "UD Leiria": "Segunda Liga",
+                "1º Dezembro": "Liga 3",
+                "Académica": "Liga 3"
+            }
+            equipa_to_divisao.update(correcoes_manuais)
+            # ===============================================
+
+            
             if 'Divisão Anterior' not in df_mercado.columns:
                 def get_div_anterior(row):
                     clube_ant = str(row.get('Clube_Anterior', 'Manutenção'))
@@ -532,8 +563,10 @@ else:
                 if row['Divisão Anterior'] == "Primeira Liga": return "Primeira Liga"
                 if row['Divisão Anterior'] == "Segunda Liga": return "Segunda Liga"
                 
-                rank_atual = ranking_divisao(row['Divisao'])
+                div_oficial_atual = equipa_to_divisao.get(row['Equipa'], row['Divisao'])
+                rank_atual = ranking_divisao(div_oficial_atual)
                 rank_ant = ranking_divisao(row['Divisão Anterior'])
+                
                 if rank_ant < rank_atual: return "Veio de Divisão Superior"
                 if rank_ant > rank_atual: return "Veio de Divisão Inferior"
                 return "Mesma Divisão"
