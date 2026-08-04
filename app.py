@@ -520,6 +520,11 @@ else:
             if 'Divisão Anterior' not in df_mercado.columns:
                 def get_div_anterior(row):
                     clube_ant = str(row.get('Clube_Anterior', 'Manutenção'))
+
+            
+            if 'Divisão Anterior' not in df_mercado.columns:
+                def get_div_anterior(row):
+                    clube_ant = str(row.get('Clube_Anterior', 'Manutenção'))
                     if pd.isna(clube_ant) or clube_ant == "Manutenção" or clube_ant == "Desconhecido":
                         return clube_ant
                         
@@ -528,8 +533,8 @@ else:
                     if any(term in clube_upper for term in [" [B]", " B ", " [C]", " C ", "SUB", "JUN", "S19", "S23", "S17", "B]"]):
                         return "Formação"
                         
-                    if clube_ant in equipa_to_divisao:
-                        return equipa_to_divisao[clube_ant]
+                    if clube_ant in equipa_to_divisao_anterior:
+                        return equipa_to_divisao_anterior[clube_ant]
                         
                     return f"Estrangeiro (Not Found: '{clube_ant}')"
                 
@@ -553,7 +558,10 @@ else:
                 if row['Divisão Anterior'] == "Primeira Liga": return "Primeira Liga"
                 if row['Divisão Anterior'] == "Segunda Liga": return "Segunda Liga"
                 
-                div_oficial_atual = equipa_to_divisao.get(row['Equipa'], row['Divisao'])
+                div_oficial_atual = row.get('Divisao')
+                if pd.isna(div_oficial_atual) or str(div_oficial_atual).strip() == "":
+                    div_oficial_atual = equipa_to_divisao.get(row['Equipa'])
+                
                 rank_atual = ranking_divisao(div_oficial_atual)
                 rank_ant = ranking_divisao(row['Divisão Anterior'])
                 
